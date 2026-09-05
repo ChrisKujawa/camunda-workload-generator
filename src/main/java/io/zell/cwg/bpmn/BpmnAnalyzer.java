@@ -24,6 +24,8 @@ import org.xml.sax.SAXException;
 
 public final class BpmnAnalyzer {
 
+  private static final String BPMN_NAMESPACE = "http://www.omg.org/spec/BPMN/20100524/MODEL";
+
   private static final Set<String> FLOW_NODE_TYPES =
       Set.of(
           "startEvent",
@@ -210,11 +212,15 @@ public final class BpmnAnalyzer {
         document,
         "userTask",
         userTask ->
-            userTasks.add(
-                new UserTask(
-                    userTask.getAttribute("id"),
-                    userTask.getAttribute("name"),
-                    processId(userTask))));
+            {
+              if (BPMN_NAMESPACE.equals(userTask.getNamespaceURI())) {
+                userTasks.add(
+                    new UserTask(
+                        userTask.getAttribute("id"),
+                        userTask.getAttribute("name"),
+                        processId(userTask)));
+              }
+            });
     return userTasks;
   }
 

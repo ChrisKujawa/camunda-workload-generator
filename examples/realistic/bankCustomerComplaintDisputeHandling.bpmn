@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    id="Definitions_realistic"
+    targetNamespace="http://camunda.io/schema/bpmn">
+  <bpmn:process id="bankDisputeHandling" name="Bank: Customer complaint/dispute handling" isExecutable="true">
+    <bpmn:startEvent id="credit_card_fraud_dispute_started" name="credit card fraud dispute started">
+      <bpmn:outgoing>flow_started_to_document_request</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_started_to_document_request" sourceRef="credit_card_fraud_dispute_started" targetRef="request_customer_documents" />
+    <bpmn:sendTask id="request_customer_documents" name="Request documents from customer">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="customer_notification" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_started_to_document_request</bpmn:incoming>
+      <bpmn:outgoing>flow_document_request_to_extract</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="flow_document_request_to_extract" sourceRef="request_customer_documents" targetRef="extract_document_data" />
+    <bpmn:serviceTask id="extract_document_data" name="Extract data from document">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="extract_data_from_document" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_document_request_to_extract</bpmn:incoming>
+      <bpmn:outgoing>flow_extract_to_decision</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_extract_to_decision" sourceRef="extract_document_data" targetRef="determine_fraud_rating" />
+    <bpmn:businessRuleTask id="determine_fraud_rating" name="Determine fraud rating confidence">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="determine-fraud-rating-1dmmwcu" resultVariable="fraud_score_result" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_extract_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_decision_to_user_task</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:sequenceFlow id="flow_decision_to_user_task" sourceRef="determine_fraud_rating" targetRef="decide_on_fraud_case" />
+    <bpmn:userTask id="decide_on_fraud_case" name="Decide on fraud case">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="decide-on-fraud-case-000115q" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_decision_to_user_task</bpmn:incoming>
+      <bpmn:outgoing>flow_user_task_to_gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="flow_user_task_to_gateway" sourceRef="decide_on_fraud_case" targetRef="refund_gateway" />
+    <bpmn:exclusiveGateway id="refund_gateway" name="refund?" default="flow_no_refund">
+      <bpmn:incoming>flow_user_task_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>flow_refund</bpmn:outgoing>
+      <bpmn:outgoing>flow_no_refund</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="flow_refund" name="refund" sourceRef="refund_gateway" targetRef="initiate_refund">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isRefund</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_no_refund" name="no refund" sourceRef="refund_gateway" targetRef="inform_customer_no_refund" />
+    <bpmn:callActivity id="initiate_refund" name="Initiate credit and clawback action">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="refundingProcess" propagateAllChildVariables="false" propagateAllParentVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_refund</bpmn:incoming>
+      <bpmn:outgoing>flow_refund_to_end</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="flow_refund_to_end" sourceRef="initiate_refund" targetRef="refund_completed" />
+    <bpmn:endEvent id="refund_completed" name="dispute settled - refund">
+      <bpmn:incoming>flow_refund_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="inform_customer_no_refund" name="Inform customer about unsuccessful claim">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="inform_about_failed_claim" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_no_refund</bpmn:incoming>
+      <bpmn:outgoing>flow_no_refund_to_end</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="flow_no_refund_to_end" sourceRef="inform_customer_no_refund" targetRef="no_refund_completed" />
+    <bpmn:endEvent id="no_refund_completed" name="dispute settled - no refund">
+      <bpmn:incoming>flow_no_refund_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

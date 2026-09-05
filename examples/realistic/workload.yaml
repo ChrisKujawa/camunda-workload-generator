@@ -1,0 +1,16 @@
+runtime:
+  image: camunda/camunda:8.8.0
+resources:
+  directory: examples/realistic
+  rootProcessId: bankDisputeHandling
+  payload: payload.json
+workload:
+  startInstances: 5
+  completeInstances: 3
+  userTasks:
+    - name: Decide on fraud case
+      variables:
+        isRefund: true
+        analystDecision: approve_refund
+output:
+  path: build/examples/realistic
