@@ -1,9 +1,11 @@
 package io.zell.cwg.artifacts;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -36,8 +38,9 @@ public final class ZeebeDataArtifactWriter {
     Files.createDirectories(zipPath.getParent());
     try (final var zipOutput = new ZipOutputStream(Files.newOutputStream(zipPath));
         final var paths = Files.walk(sourceDirectory)) {
-      final var files = paths.filter(Files::isRegularFile).toList();
-      for (final var file : files) {
+      final var files = paths.filter(Files::isRegularFile).iterator();
+      while (files.hasNext()) {
+        final var file = files.next();
         final var entryName = sourceDirectory.relativize(file).toString().replace('\\', '/');
         zipOutput.putNextEntry(new ZipEntry(entryName));
         Files.copy(file, zipOutput);
@@ -51,12 +54,26 @@ public final class ZeebeDataArtifactWriter {
     if (!Files.exists(path)) {
       return;
     }
-    try (final var paths = Files.walk(path)) {
-      final var entries = paths.sorted(Comparator.reverseOrder()).toList();
-      for (final var entry : entries) {
-        Files.delete(entry);
-      }
-    }
+    Files.walkFileTree(
+        path,
+        new SimpleFileVisitor<>() {
+          @Override
+          public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs)
+              throws IOException {
+            Files.delete(file);
+            return FileVisitResult.CONTINUE;
+          }
+
+          @Override
+          public FileVisitResult postVisitDirectory(final Path directory, final IOException error)
+              throws IOException {
+            if (error != null) {
+              throw error;
+            }
+            Files.delete(directory);
+            return FileVisitResult.CONTINUE;
+          }
+        });
   }
 
   @FunctionalInterface

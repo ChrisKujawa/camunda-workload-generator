@@ -24,8 +24,9 @@ public record ZeebeDataArtifacts(String directory, String zip, long files, long 
   private static long totalRegularFileBytes(final Path directory) throws IOException {
     long bytes = 0;
     try (final var paths = Files.walk(directory)) {
-      final var files = paths.filter(Files::isRegularFile).toList();
-      for (final var file : files) {
+      final var files = paths.filter(Files::isRegularFile).iterator();
+      while (files.hasNext()) {
+        final var file = files.next();
         bytes += Files.size(file);
       }
     }
