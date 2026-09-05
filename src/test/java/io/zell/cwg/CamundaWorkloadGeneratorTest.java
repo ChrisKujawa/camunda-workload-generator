@@ -119,6 +119,7 @@ final class CamundaWorkloadGeneratorTest {
         <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
           <process id="invoice">
+            <userTask id="approve_invoice" name="Approve invoice" />
             <serviceTask id="charge_card">
               <extensionElements>
                 <zeebe:taskDefinition type="charge-card" />
@@ -146,6 +147,7 @@ final class CamundaWorkloadGeneratorTest {
         .contains("DMN invoice.dmn")
         .contains("JSON payload.json")
         .contains("invoice")
+        .contains("approve_invoice \"Approve invoice\"")
         .contains("charge-card (charge_card)");
   }
 
@@ -226,6 +228,7 @@ final class CamundaWorkloadGeneratorTest {
               </extensionElements>
               <incoming>child_flow</incoming>
             </businessRuleTask>
+            <userTask id="child_approval" name="Child approval" />
             <serviceTask id="child_task">
               <extensionElements>
                 <zeebe:taskDefinition type="child-worker" />
@@ -250,6 +253,7 @@ final class CamundaWorkloadGeneratorTest {
     assertThat(out.toString())
         .contains("Selected process: child")
         .contains("child-worker")
+        .contains("child_approval \"Child approval\"")
         .contains("child_message")
         .contains("childDecision")
         .doesNotContain("parent-worker");

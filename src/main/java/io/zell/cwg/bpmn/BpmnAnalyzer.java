@@ -6,6 +6,7 @@ import io.zell.cwg.bpmn.BpmnAnalysis.HappyPathNode;
 import io.zell.cwg.bpmn.BpmnAnalysis.MessageReference;
 import io.zell.cwg.bpmn.BpmnAnalysis.ProcessPath;
 import io.zell.cwg.bpmn.BpmnAnalysis.StaticJobType;
+import io.zell.cwg.bpmn.BpmnAnalysis.UserTask;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ public final class BpmnAnalyzer {
         processIds(document),
         processPaths(document),
         staticJobTypes(document),
+        userTasks(document),
         callActivities(document),
         messageReferences(document),
         dmnReferences(document));
@@ -200,6 +202,20 @@ public final class BpmnAnalyzer {
                   processId(callActivity)));
         });
     return callActivities;
+  }
+
+  private List<UserTask> userTasks(final Document document) {
+    final var userTasks = new ArrayList<UserTask>();
+    forEachElement(
+        document,
+        "userTask",
+        userTask ->
+            userTasks.add(
+                new UserTask(
+                    userTask.getAttribute("id"),
+                    userTask.getAttribute("name"),
+                    processId(userTask))));
+    return userTasks;
   }
 
   private List<MessageReference> messageReferences(final Document document) {

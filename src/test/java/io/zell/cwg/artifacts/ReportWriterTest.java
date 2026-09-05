@@ -31,6 +31,7 @@ final class ReportWriterTest {
             completedJobs,
             Map.of("charge-card", 4L),
             Map.of("payment-received", 4L),
+            Map.of("approve_invoice", 4L),
             SecondaryStorageReport.skipped());
 
     // when
@@ -45,6 +46,7 @@ final class ReportWriterTest {
     assertThat(json.get("completedJobs").get("charge-card").asLong()).isEqualTo(4);
     assertThat(json.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(4);
     assertThat(json.get("publishedMessages").get("payment-received").asLong()).isEqualTo(4);
+    assertThat(json.get("completedUserTasks").get("approve_invoice").asLong()).isEqualTo(4);
     assertThat(json.get("secondaryStorage").get("status").asText()).isEqualTo("skipped");
   }
 }

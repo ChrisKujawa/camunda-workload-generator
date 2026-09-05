@@ -8,6 +8,7 @@ public record BpmnAnalysis(
     List<String> processIds,
     List<ProcessPath> processPaths,
     List<StaticJobType> staticJobTypes,
+    List<UserTask> userTasks,
     List<CallActivity> callActivities,
     List<MessageReference> messageReferences,
     List<DmnReference> dmnReferences) {
@@ -16,6 +17,7 @@ public record BpmnAnalysis(
     processIds = List.copyOf(processIds);
     processPaths = List.copyOf(processPaths);
     staticJobTypes = List.copyOf(staticJobTypes);
+    userTasks = List.copyOf(userTasks);
     callActivities = List.copyOf(callActivities);
     messageReferences = List.copyOf(messageReferences);
     dmnReferences = List.copyOf(dmnReferences);
@@ -36,6 +38,8 @@ public record BpmnAnalysis(
       String elementId, String elementName, String elementType, String jobType) {}
 
   public record StaticJobType(String elementId, String elementName, String type, String processId) {}
+
+  public record UserTask(String elementId, String elementName, String processId) {}
 
   public record CallActivity(
       String elementId, String elementName, String calledProcessId, String processId) {}

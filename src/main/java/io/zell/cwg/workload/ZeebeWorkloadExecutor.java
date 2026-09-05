@@ -1,10 +1,13 @@
 package io.zell.cwg.workload;
 
 import io.camunda.zeebe.client.ZeebeClient;
+import io.camunda.zeebe.client.api.ZeebeFuture;
+import io.camunda.zeebe.client.api.response.ProcessInstanceResult;
 import io.camunda.zeebe.client.api.worker.JobWorker;
 import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.resources.WorkloadResourceAnalysis;
+import io.zell.cwg.workload.UserTaskCompletions.UserTaskCompletion;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +19,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
 
   private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(2);
   private static final Duration MESSAGE_TIME_TO_LIVE = Duration.ofMinutes(5);
+  private static final Duration USER_TASK_POLL_DELAY = Duration.ofSeconds(1);
 
   @Override
   public WorkloadExecution execute(
@@ -38,8 +42,10 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     final var completedJobs = new ConcurrentHashMap<String, LongAdder>();
     final var appliedWorkerOutputs = new ConcurrentHashMap<String, LongAdder>();
     final var publishedMessages = new ConcurrentHashMap<String, LongAdder>();
+    final var completedUserTasks = new ConcurrentHashMap<String, LongAdder>();
     try (final var client =
         ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
+      final var userTaskCompletions = UserTaskCompletions.from(config, resourceAnalysis);
       completeProcessInstances(
           client,
           resourceAnalysis,
@@ -48,8 +54,10 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
           payloadVariables,
           config.getWorkload().workerOutputs(),
           config.getWorkload().messages(),
+          userTaskCompletions,
           appliedWorkerOutputs,
           publishedMessages,
+          completedUserTasks,
           completedJobs);
       startActiveProcessInstances(
           client, rootProcessId, startInstances - completeInstances, payloadVariables);
@@ -62,7 +70,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
         0,
         count(completedJobs),
         count(appliedWorkerOutputs),
-        count(publishedMessages));
+        count(publishedMessages),
+        count(completedUserTasks));
   }
 
   private static void completeProcessInstances(
@@ -73,8 +82,10 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       final Map<String, Object> payloadVariables,
       final Map<String, Map<String, Object>> workerOutputs,
       final List<WorkloadConfig.MessageConfig> messages,
+      final List<UserTaskCompletion> userTaskCompletions,
       final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs,
       final ConcurrentHashMap<String, LongAdder> publishedMessages,
+      final ConcurrentHashMap<String, LongAdder> completedUserTasks,
       final ConcurrentHashMap<String, LongAdder> completedJobs) {
     if (completeInstances == 0) {
       return;
@@ -94,7 +105,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
               .requestTimeout(COMMAND_TIMEOUT)
               .send();
           publishMessages(client, messages, payloadVariables, publishedMessages);
-          result.join();
+          completeUserTasksUntilProcessCompletes(
+              client, result, userTaskCompletions, completedUserTasks);
         } else {
           final var result =
               client
@@ -106,9 +118,81 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
               .requestTimeout(COMMAND_TIMEOUT)
               .send();
           publishMessages(client, messages, payloadVariables, publishedMessages);
-          result.join();
+          completeUserTasksUntilProcessCompletes(
+              client, result, userTaskCompletions, completedUserTasks);
         }
       }
+    }
+  }
+
+  private static void completeUserTasksUntilProcessCompletes(
+      final ZeebeClient client,
+      final ZeebeFuture<ProcessInstanceResult> result,
+      final List<UserTaskCompletion> userTaskCompletions,
+      final ConcurrentHashMap<String, LongAdder> completedUserTasks) {
+    if (userTaskCompletions.isEmpty()) {
+      result.join();
+      return;
+    }
+
+    while (!result.isDone()) {
+      final var completed =
+          completeAvailableUserTasks(client, userTaskCompletions, completedUserTasks);
+      if (completed == 0) {
+        waitForUserTasks();
+      }
+    }
+    result.join();
+  }
+
+  private static int completeAvailableUserTasks(
+      final ZeebeClient client,
+      final List<UserTaskCompletion> userTaskCompletions,
+      final ConcurrentHashMap<String, LongAdder> completedUserTasks) {
+    var completed = 0;
+    for (final var userTaskCompletion : userTaskCompletions) {
+      final var userTasks =
+          client
+              .newUserTaskQuery()
+              .filter(
+                  filter ->
+                      filter
+                          .state("CREATED")
+                          .elementId(userTaskCompletion.elementId()))
+              .requestTimeout(COMMAND_TIMEOUT)
+              .send()
+              .join()
+              .items();
+      for (final var userTask : userTasks) {
+        if (userTaskCompletion.variables().isEmpty()) {
+          client
+              .newUserTaskCompleteCommand(userTask.getKey())
+              .requestTimeout(COMMAND_TIMEOUT)
+              .send()
+              .join();
+        } else {
+          client
+              .newUserTaskCompleteCommand(userTask.getKey())
+              .variables(userTaskCompletion.variables())
+              .requestTimeout(COMMAND_TIMEOUT)
+              .send()
+              .join();
+        }
+        completedUserTasks
+            .computeIfAbsent(userTaskCompletion.elementId(), ignored -> new LongAdder())
+            .increment();
+        completed++;
+      }
+    }
+    return completed;
+  }
+
+  private static void waitForUserTasks() {
+    try {
+      Thread.sleep(USER_TASK_POLL_DELAY.toMillis());
+    } catch (final InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ConfigException("Interrupted while waiting for user tasks");
     }
   }
 

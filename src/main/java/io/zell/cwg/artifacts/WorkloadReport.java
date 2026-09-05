@@ -12,6 +12,7 @@ public record WorkloadReport(
     Map<String, Long> completedJobs,
     Map<String, Long> appliedWorkerOutputs,
     Map<String, Long> publishedMessages,
+    Map<String, Long> completedUserTasks,
     SecondaryStorageReport secondaryStorage) {
 
   public WorkloadReport {
@@ -21,6 +22,7 @@ public record WorkloadReport(
     completedJobs = new LinkedHashMap<>(completedJobs);
     appliedWorkerOutputs = new LinkedHashMap<>(appliedWorkerOutputs);
     publishedMessages = new LinkedHashMap<>(publishedMessages);
+    completedUserTasks = new LinkedHashMap<>(completedUserTasks);
   }
 
   public record RunSummary(

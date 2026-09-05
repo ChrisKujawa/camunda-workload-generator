@@ -30,7 +30,7 @@ public final class WorkloadConfig {
     return new WorkloadConfig(
         new RuntimeConfig("camunda/camunda:8.8.0"),
         new ResourcesConfig("resources", null, null),
-        new WorkloadSettings(1, 0, Map.of(), List.of()),
+        new WorkloadSettings(1, 0, Map.of(), List.of(), List.of()),
         new OutputConfig("build/camunda-workload-generator"));
   }
 
@@ -51,7 +51,8 @@ public final class WorkloadConfig {
               choose(raw.workload.startInstances, workload.startInstances()),
               choose(raw.workload.completeInstances, workload.completeInstances()),
               choose(raw.workload.workerOutputs, workload.workerOutputs()),
-              choose(messages(raw.workload.messages), workload.messages()));
+              choose(messages(raw.workload.messages), workload.messages()),
+              choose(userTasks(raw.workload.userTasks), workload.userTasks()));
     }
     if (raw.output != null && raw.output.path != null) {
       output = new OutputConfig(raw.output.path);
@@ -84,7 +85,8 @@ public final class WorkloadConfig {
               overrides.startInstances(),
               workload.completeInstances(),
               workload.workerOutputs(),
-              workload.messages());
+              workload.messages(),
+              workload.userTasks());
     }
     if (overrides.completeInstances() != null) {
       workload =
@@ -92,7 +94,8 @@ public final class WorkloadConfig {
               workload.startInstances(),
               overrides.completeInstances(),
               workload.workerOutputs(),
-              workload.messages());
+              workload.messages(),
+              workload.userTasks());
     }
     if (overrides.outputPath() != null) {
       output = new OutputConfig(overrides.outputPath());
@@ -113,6 +116,7 @@ public final class WorkloadConfig {
     requireNonNegative("workload.completeInstances", workload.completeInstances(), errors);
     validateWorkerOutputs(workload.workerOutputs(), errors);
     validateMessages(workload.messages(), resources.payload(), errors);
+    validateUserTasks(workload.userTasks(), errors);
     if (workload.completeInstances() > workload.startInstances()) {
       errors.add("workload.completeInstances must be less than or equal to workload.startInstances");
     }
@@ -166,11 +170,21 @@ public final class WorkloadConfig {
       int startInstances,
       int completeInstances,
       Map<String, Map<String, Object>> workerOutputs,
-      List<MessageConfig> messages) {
+      List<MessageConfig> messages,
+      List<UserTaskConfig> userTasks) {
+
+    public WorkloadSettings(
+        final int startInstances,
+        final int completeInstances,
+        final Map<String, Map<String, Object>> workerOutputs,
+        final List<MessageConfig> messages) {
+      this(startInstances, completeInstances, workerOutputs, messages, List.of());
+    }
 
     public WorkloadSettings {
       workerOutputs = copyWorkerOutputs(workerOutputs);
       messages = copyMessages(messages);
+      userTasks = copyUserTasks(userTasks);
     }
   }
 
@@ -192,6 +206,16 @@ public final class WorkloadConfig {
     }
   }
 
+  public record UserTaskConfig(String elementId, String name, Map<String, Object> variables) {
+
+    public UserTaskConfig {
+      variables =
+          variables == null
+              ? Map.of()
+              : Collections.unmodifiableMap(new LinkedHashMap<>(variables));
+    }
+  }
+
   public record OutputConfig(String path) {}
 
   private static List<MessageConfig> messages(final List<RawWorkloadConfig.MessageConfig> raw) {
@@ -209,6 +233,20 @@ public final class WorkloadConfig {
                         message.correlationKeyExpression,
                         message.variables,
                         message.timing))
+        .toList();
+  }
+
+  private static List<UserTaskConfig> userTasks(
+      final List<RawWorkloadConfig.UserTaskConfig> raw) {
+    if (raw == null) {
+      return null;
+    }
+    return raw.stream()
+        .map(
+            userTask ->
+                userTask == null
+                    ? null
+                    : new UserTaskConfig(userTask.elementId, userTask.name, userTask.variables))
         .toList();
   }
 
@@ -252,6 +290,13 @@ public final class WorkloadConfig {
     return Collections.unmodifiableList(new ArrayList<>(messages));
   }
 
+  private static List<UserTaskConfig> copyUserTasks(final List<UserTaskConfig> userTasks) {
+    if (userTasks == null || userTasks.isEmpty()) {
+      return List.of();
+    }
+    return Collections.unmodifiableList(new ArrayList<>(userTasks));
+  }
+
   private static void validateMessages(
       final List<MessageConfig> messages, final String payload, final List<String> errors) {
     for (int i = 0; i < messages.size(); i++) {
@@ -285,6 +330,30 @@ public final class WorkloadConfig {
         errors.add(prefix + ".timing must be afterProcessStart");
       }
       message
+          .variables()
+          .keySet()
+          .forEach(
+              variableName ->
+                  requireNonBlank(prefix + ".variables variable name", variableName, errors));
+    }
+  }
+
+  private static void validateUserTasks(
+      final List<UserTaskConfig> userTasks, final List<String> errors) {
+    for (int i = 0; i < userTasks.size(); i++) {
+      final var userTask = userTasks.get(i);
+      final var prefix = "workload.userTasks[%d]".formatted(i);
+      if (userTask == null) {
+        errors.add(prefix + " must not be null");
+        continue;
+      }
+
+      final var hasElementId = userTask.elementId() != null && !userTask.elementId().isBlank();
+      final var hasName = userTask.name() != null && !userTask.name().isBlank();
+      if (hasElementId == hasName) {
+        errors.add(prefix + " must set exactly one of elementId or name");
+      }
+      userTask
           .variables()
           .keySet()
           .forEach(

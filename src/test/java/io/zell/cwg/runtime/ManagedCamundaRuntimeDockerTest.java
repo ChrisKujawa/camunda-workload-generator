@@ -184,4 +184,55 @@ final class ManagedCamundaRuntimeDockerTest {
     assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
     assertThat(report.get("publishedMessages").get("payment-received").asLong()).isEqualTo(1);
   }
+
+  @Test
+  void shouldCompleteConfiguredUserTask() throws Exception {
+    // given
+    final var resources = tempDir.resolve("user-task-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("user-task.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="approval" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="approve_invoice" />
+            <bpmn:userTask id="approve_invoice" name="Approve invoice">
+              <bpmn:extensionElements>
+                <zeebe:userTask />
+              </bpmn:extensionElements>
+            </bpmn:userTask>
+            <bpmn:sequenceFlow id="flow2" sourceRef="approve_invoice" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("user-task-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "approval", null),
+                    new WorkloadSettings(
+                        1,
+                        1,
+                        Map.of(),
+                        List.of(),
+                        List.of(
+                            new WorkloadConfig.UserTaskConfig(
+                                null, "Approve invoice", Map.of("approved", true)))),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("completedUserTasks").get("approve_invoice").asLong()).isEqualTo(1);
+  }
 }

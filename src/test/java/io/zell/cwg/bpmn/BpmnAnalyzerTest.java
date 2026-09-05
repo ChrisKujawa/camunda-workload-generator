@@ -43,6 +43,7 @@ final class BpmnAnalyzerTest {
                 <zeebe:calledDecision decisionId="invoiceDecision" />
               </bpmn:extensionElements>
             </bpmn:businessRuleTask>
+            <bpmn:userTask id="approve_invoice" name="Approve invoice" />
             <bpmn:callActivity id="call_subprocess" name="Call subprocess">
               <bpmn:extensionElements>
                 <zeebe:calledElement processId="subprocess" />
@@ -69,6 +70,12 @@ final class BpmnAnalyzerTest {
             BpmnAnalysis.CallActivity::calledProcessId,
             BpmnAnalysis.CallActivity::processId)
         .containsExactly(tuple("call_subprocess", "subprocess", "invoice"));
+    assertThat(analysis.userTasks())
+        .extracting(
+            BpmnAnalysis.UserTask::elementId,
+            BpmnAnalysis.UserTask::elementName,
+            BpmnAnalysis.UserTask::processId)
+        .containsExactly(tuple("approve_invoice", "Approve invoice", "invoice"));
     assertThat(analysis.messageReferences())
         .extracting(
             BpmnAnalysis.MessageReference::elementId,

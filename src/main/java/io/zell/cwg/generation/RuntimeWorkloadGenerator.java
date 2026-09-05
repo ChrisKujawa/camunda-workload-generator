@@ -119,6 +119,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         workloadExecution.completedJobs(),
         workloadExecution.appliedWorkerOutputs(),
         workloadExecution.publishedMessages(),
+        workloadExecution.completedUserTasks(),
         SecondaryStorageReport.skipped());
   }
 }
