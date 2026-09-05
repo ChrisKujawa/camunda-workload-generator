@@ -463,7 +463,7 @@ public final class WorkloadConfig {
       }
       if (SecondaryStorageConfig.MODE_MANAGED.equals(secondaryStorage.mode())
           && SecondaryStorageConfig.TYPE_ELASTICSEARCH.equals(type)
-          && (secondaryStorage.image() == null || secondaryStorage.image().isBlank())) {
+          && secondaryStorage.image() == null) {
         errors.add(prefix + ".image must be set for managed Elasticsearch");
       }
     }
