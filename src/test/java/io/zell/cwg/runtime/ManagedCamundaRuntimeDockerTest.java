@@ -95,13 +95,11 @@ final class ManagedCamundaRuntimeDockerTest {
               </bpmn:extensionElements>
             </bpmn:serviceTask>
             <bpmn:sequenceFlow id="flow2" sourceRef="task" targetRef="gateway" />
-            <bpmn:exclusiveGateway id="gateway" default="rejected" />
+            <bpmn:exclusiveGateway id="gateway" />
             <bpmn:sequenceFlow id="approved" sourceRef="gateway" targetRef="approved_end">
               <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=approved</bpmn:conditionExpression>
             </bpmn:sequenceFlow>
-            <bpmn:sequenceFlow id="rejected" sourceRef="gateway" targetRef="rejected_end" />
             <bpmn:endEvent id="approved_end" />
-            <bpmn:endEvent id="rejected_end" />
           </bpmn:process>
         </bpmn:definitions>
         """);
