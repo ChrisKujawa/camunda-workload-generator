@@ -14,13 +14,14 @@ and payload resources. It is intended for experiments, fixture generation, and
 investigations where reproducible Zeebe data and optional secondary-storage
 ingestion artifacts are useful.
 
-## Boundary
+## Project boundary
 
-The generator creates data. Tools such as ZDB read data.
+`camunda-workload-generator` produces workload artifacts: Zeebe data,
+manifests, reports, and optional secondary-storage ingestion output.
 
-This repository should not depend on ZDB internals. ZDB should not depend on this
-generator to read Zeebe data from production systems, copied volumes, generated
-fixtures, or future secondary-storage artifacts.
+Readers stay separate. ZDB can consume generated Zeebe data the same way it
+consumes production copies, copied volumes, or committed fixtures. This
+repository should avoid depending on ZDB internals.
 
 ## Intended direction
 
