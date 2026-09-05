@@ -36,9 +36,10 @@ repository should avoid depending on ZDB internals.
 
 ## Status
 
-The first milestone is a non-Docker foundation. The CLI, config foundation,
-resource scanning, static BPMN analysis, and manifest/report artifact models
-exist. Runtime generation is a planned follow-up slice.
+The CLI, config foundation, resource scanning, static BPMN analysis,
+manifest/report artifact models, and managed runtime resource deployment exist.
+Workload execution, Zeebe data export, and secondary-storage ingestion are
+planned follow-up slices.
 
 ## Development
 
@@ -47,16 +48,24 @@ This project uses Java 21 and Maven.
 ```bash
 mvn test
 mvn package
+mvn test -Dgroups=docker -Dsurefire.excludedGroups=
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar --help
 ```
 
-The initial CLI foundation supports configuration validation and effective
-configuration printing without starting Docker:
+The default Maven test path skips Docker-tagged tests. Run the `docker` group
+explicitly when validating managed runtime behavior. Docker tests are skipped
+when Testcontainers cannot find a usable Docker environment. The
+`Docker integration` GitHub Actions workflow runs the same Docker-tagged test
+group manually.
+
+The CLI supports configuration validation, effective configuration printing,
+resource analysis, and managed runtime deployment:
 
 ```bash
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar validate --config workload.yaml
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar print-config --config workload.yaml
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-resources --config workload.yaml
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate --config workload.yaml
 ```
 
 Configuration precedence is:
@@ -113,4 +122,15 @@ directory:
   secondary-storage ingestion status.
 
 These metadata files can be written and tested without Docker. Runtime-backed
-commands will fill them with actual run data in later slices.
+commands fill resource metadata after deploying the configured deployable files.
+Workload execution will fill non-zero run counts in later slices.
+
+## Managed runtime
+
+`generate` starts the configured Camunda image with Testcontainers, disables
+secondary storage, runs the broker profile, deploys scanned BPMN/DMN/form files,
+shuts the runtime down cleanly, and writes `manifest.json` plus `report.json` to
+the configured output directory.
+
+The current runtime slice does not start process instances or complete jobs yet.
+Those are handled by the workload execution slice.
