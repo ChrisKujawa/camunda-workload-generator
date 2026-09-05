@@ -15,6 +15,24 @@ final class CamundaWorkloadGeneratorTest {
   @TempDir private Path tempDir;
 
   @Test
+  void shouldPrintVersion() {
+    // given
+    final var out = new StringWriter();
+    final var err = new StringWriter();
+    final var command = new CommandLine(new CamundaWorkloadGenerator.RootCommand());
+    command.setOut(new PrintWriter(out));
+    command.setErr(new PrintWriter(err));
+
+    // when
+    final var exitCode = command.execute("--version");
+
+    // then
+    assertThat(exitCode).isZero();
+    assertThat(err.toString()).isEmpty();
+    assertThat(out.toString()).startsWith("camunda-workload-generator ");
+  }
+
+  @Test
   void shouldPrintEffectiveConfigWithCliOverrides() throws Exception {
     // given
     final var configFile = tempDir.resolve("workload.yaml");

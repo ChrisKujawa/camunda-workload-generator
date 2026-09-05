@@ -16,6 +16,7 @@ public final class CamundaWorkloadGenerator {
   public static void main(final String[] args) {
     System.exit(execute(args));
   }
+
   public static int execute(final String... args) {
     return new CommandLine(new RootCommand()).execute(args);
   }
@@ -23,7 +24,7 @@ public final class CamundaWorkloadGenerator {
   @Command(
       name = "camunda-workload-generator",
       mixinStandardHelpOptions = true,
-      version = "camunda-workload-generator 0.1.0-SNAPSHOT",
+      versionProvider = VersionProvider.class,
       description = "Generate reproducible Camunda workload artifacts.",
       subcommands = {
         GenerateCommand.class,
@@ -40,6 +41,20 @@ public final class CamundaWorkloadGenerator {
     @Override
     public void run() {
       spec.commandLine().usage(spec.commandLine().getOut());
+    }
+  }
+
+  public static final class VersionProvider implements CommandLine.IVersionProvider {
+
+    @Override
+    public String[] getVersion() {
+      final var implementationVersion =
+          CamundaWorkloadGenerator.class.getPackage().getImplementationVersion();
+      final var version =
+          implementationVersion == null || implementationVersion.isBlank()
+              ? "dev"
+              : implementationVersion;
+      return new String[] {"camunda-workload-generator " + version};
     }
   }
 }

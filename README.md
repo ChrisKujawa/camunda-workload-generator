@@ -52,6 +52,9 @@ mvn test -Dgroups=docker -Dsurefire.excludedGroups=
 java -jar target/camunda-workload-generator-*.jar --help
 ```
 
+`mvn package` creates `target/camunda-workload-generator-*.jar` as an
+executable, dependency-including JAR.
+
 The default Maven test path skips Docker-tagged tests. Run the `docker` group
 explicitly when validating managed runtime behavior. Docker tests are skipped
 when Testcontainers cannot find a usable Docker environment. The
