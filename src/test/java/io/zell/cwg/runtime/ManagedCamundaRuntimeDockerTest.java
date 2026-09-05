@@ -7,6 +7,7 @@ import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.config.WorkloadConfig.OutputConfig;
 import io.zell.cwg.config.WorkloadConfig.ResourcesConfig;
 import io.zell.cwg.config.WorkloadConfig.RuntimeConfig;
+import io.zell.cwg.config.WorkloadConfig.SecondaryStorageConfig;
 import io.zell.cwg.config.WorkloadConfig.WorkloadSettings;
 import io.zell.cwg.generation.RuntimeWorkloadGenerator;
 import java.nio.file.Files;
@@ -83,6 +84,54 @@ final class ManagedCamundaRuntimeDockerTest {
     assertThat(report.get("zeebeData").get("zip").asText()).isEqualTo("zeebe-data.zip");
     assertThat(report.get("zeebeData").get("files").asLong()).isPositive();
     assertThat(report.get("zeebeData").get("bytes").asLong()).isPositive();
+  }
+
+  @Test
+  void shouldWriteSecondaryStorageReportForManagedOpenSearch() throws Exception {
+    // given
+    final var resources = tempDir.resolve("secondary-storage-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("invoice.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="invoice" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("secondary-storage-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "invoice", null),
+                    new WorkloadSettings(1, 0, Map.of(), List.of()),
+                    new SecondaryStorageConfig(
+                        SecondaryStorageConfig.MODE_MANAGED,
+                        SecondaryStorageConfig.TYPE_OPENSEARCH,
+                        null,
+                        null,
+                        true,
+                        "PT3M"),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("secondaryStorage").get("ingestionWaited").asBoolean()).isTrue();
+    assertThat(report.get("secondaryStorage").get("type").asText()).isEqualTo("opensearch");
+    assertThat(report.get("secondaryStorage").get("mode").asText()).isEqualTo("managed");
+    assertThat(report.get("secondaryStorage").get("status").asText()).isEqualTo("ingested");
+    assertThat(report.get("secondaryStorage").get("indexes").asLong()).isPositive();
+    assertThat(report.get("secondaryStorage").get("documents").asLong()).isPositive();
   }
 
   @Test

@@ -1,0 +1,111 @@
+package io.zell.cwg.secondary;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.sun.net.httpserver.HttpServer;
+import io.zell.cwg.config.WorkloadConfig.SecondaryStorageConfig;
+import io.zell.cwg.runtime.SecondaryStorageEndpoint;
+import java.net.InetSocketAddress;
+import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Test;
+
+final class SecondaryStorageReporterTest {
+
+  @Test
+  void shouldReportAttachedSecondaryStorageStats() throws Exception {
+    // given
+    final var server = startIndexServer("[{\"index\":\"operate-list-view\",\"docs.count\":\"7\",\"store.size\":\"42\"}]");
+    final var endpoint =
+        new SecondaryStorageEndpoint("attached", "opensearch", "http://localhost:" + server.getAddress().getPort());
+    final var reporter =
+        new SecondaryStorageReporter(
+            HttpClient.newHttpClient(),
+            Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC),
+            ignored -> {});
+
+    try {
+      // when
+      final var report =
+          reporter.report(
+              new SecondaryStorageConfig("attached", "opensearch", null, null, false, "PT1S"),
+              Optional.of(endpoint));
+
+      // then
+      assertThat(report.ingestionWaited()).isFalse();
+      assertThat(report.type()).isEqualTo("opensearch");
+      assertThat(report.status()).isEqualTo("queried");
+      assertThat(report.mode()).isEqualTo("attached");
+      assertThat(report.indexes()).isEqualTo(1);
+      assertThat(report.documents()).isEqualTo(7);
+      assertThat(report.storeSizeBytes()).isEqualTo(42);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
+  void shouldWaitForIngestionUntilDocumentsAreVisible() throws Exception {
+    // given
+    final var responses = new AtomicInteger();
+    final var server =
+        startIndexServer(
+            () ->
+                responses.incrementAndGet() == 1
+                    ? "[]"
+                    : "[{\"index\":\"operate-list-view\",\"docs.count\":\"1\",\"store.size\":\"10\"}]");
+    final var endpoint =
+        new SecondaryStorageEndpoint("attached", "opensearch", "http://localhost:" + server.getAddress().getPort());
+    final var reporter =
+        new SecondaryStorageReporter(
+            HttpClient.newHttpClient(),
+            Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC),
+            ignored -> {});
+
+    try {
+      // when
+      final var report =
+          reporter.report(
+              new SecondaryStorageConfig("attached", "opensearch", null, null, true, "PT1S"),
+              Optional.of(endpoint));
+
+      // then
+      assertThat(report.ingestionWaited()).isTrue();
+      assertThat(report.status()).isEqualTo("ingested");
+      assertThat(report.documents()).isEqualTo(1);
+      assertThat(responses).hasValue(2);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  private static HttpServer startIndexServer(final String response) throws Exception {
+    return startIndexServer(() -> response);
+  }
+
+  private static HttpServer startIndexServer(final ResponseSupplier responseSupplier)
+      throws Exception {
+    final var server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+    server.createContext(
+        "/_cat/indices",
+        exchange -> {
+          final var response = responseSupplier.get().getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().add("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+    return server;
+  }
+
+  @FunctionalInterface
+  private interface ResponseSupplier {
+    String get();
+  }
+}

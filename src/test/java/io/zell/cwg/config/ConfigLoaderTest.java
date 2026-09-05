@@ -45,6 +45,12 @@ final class ConfigLoaderTest {
         output:
           path: build/config-output
           zipZeebeData: true
+        secondaryStorage:
+          mode: attached
+          type: opensearch
+          url: http://localhost:9200
+          waitForIngestion: true
+          waitTimeout: PT30S
         """);
 
     // when
@@ -83,6 +89,11 @@ final class ConfigLoaderTest {
                 null, "Approve invoice", Map.of("approved", true)));
     assertThat(config.getOutput().path()).isEqualTo("build/cli-output");
     assertThat(config.getOutput().zipZeebeData()).isTrue();
+    assertThat(config.getSecondaryStorage().mode()).isEqualTo("attached");
+    assertThat(config.getSecondaryStorage().effectiveType()).isEqualTo("opensearch");
+    assertThat(config.getSecondaryStorage().url()).isEqualTo("http://localhost:9200");
+    assertThat(config.getSecondaryStorage().waitForIngestion()).isTrue();
+    assertThat(config.getSecondaryStorage().waitTimeout()).isEqualTo("PT30S");
   }
 
   @Test
@@ -101,6 +112,7 @@ final class ConfigLoaderTest {
     assertThat(config.getWorkload().userTasks()).isEmpty();
     assertThat(config.getOutput().path()).isEqualTo("build/camunda-workload-generator");
     assertThat(config.getOutput().zipZeebeData()).isFalse();
+    assertThat(config.getSecondaryStorage().mode()).isEqualTo("disabled");
   }
 
   @Test
@@ -132,6 +144,27 @@ final class ConfigLoaderTest {
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining(
             "workload.completeInstances must be less than or equal to workload.startInstances");
+  }
+
+  @Test
+  void shouldRejectInvalidSecondaryStorageConfig() throws Exception {
+    // given
+    final var configFile = tempDir.resolve("workload.yaml");
+    Files.writeString(
+        configFile,
+        """
+        secondaryStorage:
+          mode: attached
+          type: solr
+          waitTimeout: soon
+        """);
+
+    // when / then
+    assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("secondaryStorage.type must be one of opensearch, elasticsearch")
+        .hasMessageContaining("secondaryStorage.url must not be blank")
+        .hasMessageContaining("secondaryStorage.waitTimeout must be an ISO-8601 duration");
   }
 
   @Test

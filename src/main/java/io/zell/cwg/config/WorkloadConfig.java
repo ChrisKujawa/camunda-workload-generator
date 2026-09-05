@@ -1,5 +1,6 @@
 package io.zell.cwg.config;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -11,6 +12,7 @@ public final class WorkloadConfig {
   private RuntimeConfig runtime;
   private ResourcesConfig resources;
   private WorkloadSettings workload;
+  private SecondaryStorageConfig secondaryStorage;
   private OutputConfig output;
 
   public WorkloadConfig() {}
@@ -20,9 +22,19 @@ public final class WorkloadConfig {
       final ResourcesConfig resources,
       final WorkloadSettings workload,
       final OutputConfig output) {
+    this(runtime, resources, workload, SecondaryStorageConfig.disabled(), output);
+  }
+
+  public WorkloadConfig(
+      final RuntimeConfig runtime,
+      final ResourcesConfig resources,
+      final WorkloadSettings workload,
+      final SecondaryStorageConfig secondaryStorage,
+      final OutputConfig output) {
     this.runtime = runtime;
     this.resources = resources;
     this.workload = workload;
+    this.secondaryStorage = secondaryStorage;
     this.output = output;
   }
 
@@ -31,6 +43,7 @@ public final class WorkloadConfig {
         new RuntimeConfig("camunda/camunda:8.8.0"),
         new ResourcesConfig("resources", null, null),
         new WorkloadSettings(1, 0, Map.of(), List.of(), List.of()),
+        SecondaryStorageConfig.disabled(),
         new OutputConfig("build/camunda-workload-generator", false));
   }
 
@@ -59,6 +72,18 @@ public final class WorkloadConfig {
           new OutputConfig(
               choose(raw.output.path, output.path()),
               choose(raw.output.zipZeebeData, output.zipZeebeData()));
+    }
+    if (raw.secondaryStorage != null) {
+      secondaryStorage =
+          new SecondaryStorageConfig(
+              choose(raw.secondaryStorage.mode, secondaryStorage.mode()),
+              choose(raw.secondaryStorage.type, secondaryStorage.type()),
+              choose(raw.secondaryStorage.url, secondaryStorage.url()),
+              choose(raw.secondaryStorage.image, secondaryStorage.image()),
+              choose(
+                  raw.secondaryStorage.waitForIngestion,
+                  secondaryStorage.waitForIngestion()),
+              choose(raw.secondaryStorage.waitTimeout, secondaryStorage.waitTimeout()));
     }
   }
 
@@ -120,6 +145,7 @@ public final class WorkloadConfig {
     validateWorkerOutputs(workload.workerOutputs(), errors);
     validateMessages(workload.messages(), resources.payload(), errors);
     validateUserTasks(workload.userTasks(), errors);
+    validateSecondaryStorage(secondaryStorage, errors);
     if (workload.completeInstances() > workload.startInstances()) {
       errors.add("workload.completeInstances must be less than or equal to workload.startInstances");
     }
@@ -141,6 +167,10 @@ public final class WorkloadConfig {
 
   public WorkloadSettings getWorkload() {
     return workload;
+  }
+
+  public SecondaryStorageConfig getSecondaryStorage() {
+    return secondaryStorage;
   }
 
   public OutputConfig getOutput() {
@@ -216,6 +246,47 @@ public final class WorkloadConfig {
           variables == null
               ? Map.of()
               : Collections.unmodifiableMap(new LinkedHashMap<>(variables));
+    }
+  }
+
+  public record SecondaryStorageConfig(
+      String mode,
+      String type,
+      String url,
+      String image,
+      boolean waitForIngestion,
+      String waitTimeout) {
+
+    public static final String MODE_DISABLED = "disabled";
+    public static final String MODE_MANAGED = "managed";
+    public static final String MODE_ATTACHED = "attached";
+    public static final String TYPE_OPENSEARCH = "opensearch";
+    public static final String TYPE_ELASTICSEARCH = "elasticsearch";
+    public static final String DEFAULT_OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.19.5";
+    public static final String DEFAULT_ELASTICSEARCH_IMAGE =
+        "docker.elastic.co/elasticsearch/elasticsearch:8.19.16";
+    public static final String DEFAULT_WAIT_TIMEOUT = "PT2M";
+
+    public static SecondaryStorageConfig disabled() {
+      return new SecondaryStorageConfig(
+          MODE_DISABLED, null, null, null, false, DEFAULT_WAIT_TIMEOUT);
+    }
+
+    public String effectiveType() {
+      return type == null || type.isBlank() ? TYPE_OPENSEARCH : type;
+    }
+
+    public String effectiveImage() {
+      if (image != null && !image.isBlank()) {
+        return image;
+      }
+      return TYPE_ELASTICSEARCH.equals(effectiveType())
+          ? DEFAULT_ELASTICSEARCH_IMAGE
+          : DEFAULT_OPENSEARCH_IMAGE;
+    }
+
+    public Duration waitTimeoutDuration() {
+      return Duration.parse(waitTimeout);
     }
   }
 
@@ -366,6 +437,43 @@ public final class WorkloadConfig {
           .forEach(
               variableName ->
                   requireNonBlank(prefix + ".variables variable name", variableName, errors));
+    }
+  }
+
+  private static void validateSecondaryStorage(
+      final SecondaryStorageConfig secondaryStorage, final List<String> errors) {
+    final var prefix = "secondaryStorage";
+    requireNonBlank(prefix + ".mode", secondaryStorage.mode(), errors);
+    if (!List.of(
+            SecondaryStorageConfig.MODE_DISABLED,
+            SecondaryStorageConfig.MODE_MANAGED,
+            SecondaryStorageConfig.MODE_ATTACHED)
+        .contains(secondaryStorage.mode())) {
+      errors.add(prefix + ".mode must be one of disabled, managed, attached");
+    }
+
+    if (!SecondaryStorageConfig.MODE_DISABLED.equals(secondaryStorage.mode())) {
+      final var type = secondaryStorage.effectiveType();
+      if (!List.of(SecondaryStorageConfig.TYPE_OPENSEARCH, SecondaryStorageConfig.TYPE_ELASTICSEARCH)
+          .contains(type)) {
+        errors.add(prefix + ".type must be one of opensearch, elasticsearch");
+      }
+      if (SecondaryStorageConfig.MODE_ATTACHED.equals(secondaryStorage.mode())) {
+        requireNonBlank(prefix + ".url", secondaryStorage.url(), errors);
+      }
+      if (SecondaryStorageConfig.MODE_MANAGED.equals(secondaryStorage.mode())
+          && secondaryStorage.image() != null) {
+        requireNonBlank(prefix + ".image", secondaryStorage.image(), errors);
+      }
+    }
+
+    requireNonBlank(prefix + ".waitTimeout", secondaryStorage.waitTimeout(), errors);
+    try {
+      if (!Duration.parse(secondaryStorage.waitTimeout()).isPositive()) {
+        errors.add(prefix + ".waitTimeout must be positive");
+      }
+    } catch (final RuntimeException e) {
+      errors.add(prefix + ".waitTimeout must be an ISO-8601 duration");
     }
   }
 

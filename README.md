@@ -38,8 +38,8 @@ repository should avoid depending on ZDB internals.
 
 The CLI, config foundation, resource scanning, static BPMN analysis,
 manifest/report artifact models, managed runtime resource deployment, and
-basic workload execution exist. Zeebe data artifact output is supported for the
-managed runtime. Secondary-storage ingestion is a planned follow-up slice.
+basic workload execution, Zeebe data artifact output, and optional
+secondary-storage ingestion reporting exist.
 
 ## Development
 
@@ -99,6 +99,11 @@ workload:
     - name: Approve invoice
       variables:
         approved: true
+secondaryStorage:
+  mode: disabled
+  type: opensearch
+  waitForIngestion: false
+  waitTimeout: PT2M
 output:
   path: build/camunda-workload-generator
   zipZeebeData: false
@@ -151,10 +156,38 @@ Workload execution fills started/completed/active instance counts and completed
 job counts. Runtime-backed generation writes Zeebe data artifact paths and basic
 file/byte counts.
 
+`secondaryStorage` is optional. The default `disabled` mode keeps managed
+runtime startup small and sets `report.json` secondary-storage status to
+`skipped`. `managed` mode starts an OpenSearch or Elasticsearch container and
+configures Camunda to use it. `attached` mode points Camunda at an existing
+endpoint:
+
+```yaml
+secondaryStorage:
+  mode: managed
+  type: opensearch
+  waitForIngestion: true
+  waitTimeout: PT3M
+```
+
+```yaml
+secondaryStorage:
+  mode: attached
+  type: elasticsearch
+  url: http://localhost:9200
+  waitForIngestion: true
+```
+
+When waiting is enabled, generation polls `_cat/indices?format=json&bytes=b`
+until at least one document is visible or the timeout expires. `report.json`
+records the secondary-storage mode, type, endpoint, status, index count,
+document count, and reported store size in bytes.
+
 ## Managed runtime
 
 `generate` starts the configured Camunda image with Testcontainers, disables
-secondary storage, runs the broker profile, deploys scanned BPMN/DMN/form files,
+secondary storage unless `secondaryStorage.mode` enables it, runs the broker
+profile, deploys scanned BPMN/DMN/form files,
 shuts the runtime down cleanly, and writes `manifest.json` plus `report.json` to
 the configured output directory. During shutdown, the generator copies the
 broker data directory to `zeebe-data/`; set `output.zipZeebeData: true` to also
