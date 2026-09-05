@@ -84,6 +84,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     final WorkloadExecution workloadExecution;
     final ZeebeDataArtifacts zeebeDataArtifacts;
     try (final var runtime = runtimeFactory.create(config.getRuntime())) {
+      final var zeebeDataArtifactSource = zeebeDataArtifactSource(runtime);
       runtime.start();
       final var deployment =
           resourceDeployment.deploy(
@@ -93,7 +94,8 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
           workloadExecutor.execute(
               runtime.gatewayAddress(), config, resourceAnalysis, payloadVariables);
       zeebeDataArtifacts =
-          writeZeebeDataArtifacts(runtime, outputDirectory, config.getOutput().zipZeebeData());
+          zeebeDataArtifactSource.writeZeebeData(
+              outputDirectory, config.getOutput().zipZeebeData());
     }
 
     final var generatedAt = Instant.now(clock).toString();
@@ -135,11 +137,9 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         SecondaryStorageReport.skipped());
   }
 
-  private static ZeebeDataArtifacts writeZeebeDataArtifacts(
-      final AutoCloseable runtime, final Path outputDirectory, final boolean zip)
-      throws IOException {
+  private static ZeebeDataArtifactSource zeebeDataArtifactSource(final AutoCloseable runtime) {
     if (runtime instanceof ZeebeDataArtifactSource zeebeDataArtifactSource) {
-      return zeebeDataArtifactSource.writeZeebeData(outputDirectory, zip);
+      return zeebeDataArtifactSource;
     }
     throw new ConfigException(
         "Configured runtime does not support Zeebe data artifact output: "

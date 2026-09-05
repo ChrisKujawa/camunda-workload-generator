@@ -8,29 +8,26 @@ public record ZeebeDataArtifacts(String directory, String zip, long files, long 
 
   public static ZeebeDataArtifacts from(
       final Path outputDirectory, final Path directory, final Path zip) throws IOException {
+    final var stats = stats(directory);
     return new ZeebeDataArtifacts(
         relative(outputDirectory, directory, true),
         zip == null ? null : relative(outputDirectory, zip, false),
-        countRegularFiles(directory),
-        totalRegularFileBytes(directory));
+        stats.files(),
+        stats.bytes());
   }
 
-  private static long countRegularFiles(final Path directory) throws IOException {
-    try (final var paths = Files.walk(directory)) {
-      return paths.filter(Files::isRegularFile).count();
-    }
-  }
-
-  private static long totalRegularFileBytes(final Path directory) throws IOException {
+  private static FileStats stats(final Path directory) throws IOException {
+    long files = 0;
     long bytes = 0;
     try (final var paths = Files.walk(directory)) {
-      final var files = paths.filter(Files::isRegularFile).iterator();
-      while (files.hasNext()) {
-        final var file = files.next();
+      final var regularFiles = paths.filter(Files::isRegularFile).iterator();
+      while (regularFiles.hasNext()) {
+        final var file = regularFiles.next();
+        files++;
         bytes += Files.size(file);
       }
     }
-    return bytes;
+    return new FileStats(files, bytes);
   }
 
   private static String relative(
@@ -47,4 +44,6 @@ public record ZeebeDataArtifacts(String directory, String zip, long files, long 
     }
     return relative;
   }
+
+  private record FileStats(long files, long bytes) {}
 }

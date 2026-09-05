@@ -222,6 +222,53 @@ final class RuntimeWorkloadGeneratorTest {
     assertThat(runtime.started).isFalse();
   }
 
+  @Test
+  void shouldRejectUnsupportedRuntimeBeforeStartingRuntime() throws Exception {
+    // given
+    final var resources = tempDir.resolve("unsupported-runtime-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("invoice.bpmn"),
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <process id="invoice" />
+        </definitions>
+        """);
+    final var runtime = new NonArtifactRuntime();
+    final var generator =
+        new RuntimeWorkloadGenerator(
+            new io.zell.cwg.resources.WorkloadResourceAnalyzer(),
+            ignored -> runtime,
+            (gatewayAddress, deployableResources) -> {
+              throw new AssertionError("deployment must not run");
+            },
+            (gatewayAddress, config, analysis, payloadVariables) -> {
+              throw new AssertionError("workload must not run");
+            },
+            new io.zell.cwg.workload.PayloadVariablesLoader(),
+            new io.zell.cwg.artifacts.ManifestWriter(),
+            new io.zell.cwg.artifacts.ReportWriter(),
+            Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
+
+    // when
+    final Throwable thrown =
+        org.assertj.core.api.Assertions.catchThrowable(
+            () ->
+                generator.generate(
+                    new WorkloadConfig(
+                        new RuntimeConfig("camunda/camunda:8.8.0"),
+                        new ResourcesConfig(resources.toString(), "invoice", null),
+                        new WorkloadSettings(1, 0, Map.of(), List.of()),
+                        new OutputConfig(tempDir.resolve("output").toString()))));
+
+    // then
+    assertThat(thrown)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("does not support Zeebe data artifact output");
+    assertThat(runtime.started).isFalse();
+    assertThat(runtime.closed).isTrue();
+  }
+
   private static final class FakeRuntime implements CamundaRuntime, ZeebeDataArtifactSource {
 
     private boolean started;
@@ -254,6 +301,27 @@ final class RuntimeWorkloadGeneratorTest {
             Files.writeString(dataFile, "zeebe data");
           },
           zip);
+    }
+  }
+
+  private static final class NonArtifactRuntime implements CamundaRuntime {
+
+    private boolean started;
+    private boolean closed;
+
+    @Override
+    public void start() {
+      started = true;
+    }
+
+    @Override
+    public String gatewayAddress() {
+      return "localhost:26500";
+    }
+
+    @Override
+    public void close() {
+      closed = true;
     }
   }
 }
