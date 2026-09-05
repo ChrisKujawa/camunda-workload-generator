@@ -11,6 +11,7 @@ public record WorkloadReport(
     List<String> detectedJobTypes,
     Map<String, Long> completedJobs,
     Map<String, Long> appliedWorkerOutputs,
+    Map<String, Long> publishedMessages,
     SecondaryStorageReport secondaryStorage) {
 
   public WorkloadReport {
@@ -19,6 +20,7 @@ public record WorkloadReport(
     detectedJobTypes = List.copyOf(detectedJobTypes);
     completedJobs = new LinkedHashMap<>(completedJobs);
     appliedWorkerOutputs = new LinkedHashMap<>(appliedWorkerOutputs);
+    publishedMessages = new LinkedHashMap<>(publishedMessages);
   }
 
   public record RunSummary(

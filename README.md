@@ -90,6 +90,11 @@ workload:
   workerOutputs:
     charge-card:
       approved: true
+  messages:
+    - name: payment-received
+      correlationKeyExpression: =customer.orderId
+      variables:
+        paid: true
 output:
   path: build/camunda-workload-generator
 ```
@@ -153,6 +158,9 @@ JSON object, that object is sent as start variables for both completed and activ
 instances. Relative payload paths are resolved from the configured resources
 directory. `workload.workerOutputs` maps job types to variables that generic
 workers write when completing matching jobs, and `report.json` records how many
-times each configured output was applied. Dynamic job types,
-messages, user tasks, incidents, and connector behavior are handled by later
-slices.
+times each configured output was applied. `workload.messages` publishes explicit
+messages after each completed process instance is started. A message can use a
+static `correlationKey` or a simple `correlationKeyExpression` path resolved
+from the start payload, and `report.json` records published message counts.
+Dynamic job types, user tasks, incidents, and connector behavior are handled by
+later slices.

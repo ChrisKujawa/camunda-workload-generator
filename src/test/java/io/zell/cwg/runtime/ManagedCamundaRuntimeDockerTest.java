@@ -11,6 +11,7 @@ import io.zell.cwg.config.WorkloadConfig.WorkloadSettings;
 import io.zell.cwg.generation.RuntimeWorkloadGenerator;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -58,7 +59,7 @@ final class ManagedCamundaRuntimeDockerTest {
                 new WorkloadConfig(
                     new RuntimeConfig("camunda/camunda:8.8.0"),
                     new ResourcesConfig(resources.toString(), "invoice", null),
-                    new WorkloadSettings(3, 2, Map.of()),
+                    new WorkloadSettings(3, 2, Map.of(), List.of()),
                     new OutputConfig(output.toString())));
 
     // then
@@ -113,7 +114,10 @@ final class ManagedCamundaRuntimeDockerTest {
                     new RuntimeConfig("camunda/camunda:8.8.0"),
                     new ResourcesConfig(resources.toString(), "approval", null),
                     new WorkloadSettings(
-                        1, 1, Map.of("approve-request", Map.<String, Object>of("approved", true))),
+                        1,
+                        1,
+                        Map.of("approve-request", Map.<String, Object>of("approved", true)),
+                        List.of()),
                     new OutputConfig(output.toString())));
 
     // then
@@ -121,5 +125,63 @@ final class ManagedCamundaRuntimeDockerTest {
     assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
     assertThat(report.get("completedJobs").get("approve-request").asLong()).isEqualTo(1);
     assertThat(report.get("appliedWorkerOutputs").get("approve-request").asLong()).isEqualTo(1);
+  }
+
+  @Test
+  void shouldCompleteProcessWaitingForConfiguredMessage() throws Exception {
+    // given
+    final var resources = tempDir.resolve("message-resources");
+    Files.createDirectories(resources);
+    Files.writeString(resources.resolve("payload.json"), "{\"orderId\":\"order-1\"}");
+    Files.writeString(
+        resources.resolve("message.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:message id="payment_message" name="payment-received" />
+          <bpmn:process id="message-process" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="wait_payment" />
+            <bpmn:intermediateCatchEvent id="wait_payment">
+              <bpmn:messageEventDefinition messageRef="payment_message">
+                <bpmn:extensionElements>
+                  <zeebe:subscription correlationKey="=orderId" />
+                </bpmn:extensionElements>
+              </bpmn:messageEventDefinition>
+            </bpmn:intermediateCatchEvent>
+            <bpmn:sequenceFlow id="flow2" sourceRef="wait_payment" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("message-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "message-process", "payload.json"),
+                    new WorkloadSettings(
+                        1,
+                        1,
+                        Map.of(),
+                        List.of(
+                            new WorkloadConfig.MessageConfig(
+                                "payment-received",
+                                "order-1",
+                                null,
+                                Map.of("paid", true),
+                                null))),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("publishedMessages").get("payment-received").asLong()).isEqualTo(1);
   }
 }

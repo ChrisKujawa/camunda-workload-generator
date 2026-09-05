@@ -30,6 +30,7 @@ final class ReportWriterTest {
             List.of("charge-card"),
             completedJobs,
             Map.of("charge-card", 4L),
+            Map.of("payment-received", 4L),
             SecondaryStorageReport.skipped());
 
     // when
@@ -43,6 +44,7 @@ final class ReportWriterTest {
     assertThat(json.get("detectedJobTypes").get(0).asText()).isEqualTo("charge-card");
     assertThat(json.get("completedJobs").get("charge-card").asLong()).isEqualTo(4);
     assertThat(json.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(4);
+    assertThat(json.get("publishedMessages").get("payment-received").asLong()).isEqualTo(4);
     assertThat(json.get("secondaryStorage").get("status").asText()).isEqualTo("skipped");
   }
 }
