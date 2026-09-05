@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -31,6 +32,11 @@ final class ConfigLoaderTest {
           workerOutputs:
             charge-card:
               approved: true
+          messages:
+            - name: payment-received
+              correlationKeyExpression: =customer.id
+              variables:
+                paid: true
         output:
           path: build/config-output
         """);
@@ -57,6 +63,14 @@ final class ConfigLoaderTest {
     assertThat(config.getWorkload().completeInstances()).isEqualTo(7);
     assertThat(config.getWorkload().workerOutputs())
         .containsEntry("charge-card", Map.of("approved", true));
+    assertThat(config.getWorkload().messages())
+        .containsExactly(
+            new WorkloadConfig.MessageConfig(
+                "payment-received",
+                null,
+                "=customer.id",
+                Map.of("paid", true),
+                WorkloadConfig.MessageConfig.AFTER_PROCESS_START));
     assertThat(config.getOutput().path()).isEqualTo("build/cli-output");
   }
 
@@ -72,6 +86,7 @@ final class ConfigLoaderTest {
     assertThat(config.getWorkload().startInstances()).isEqualTo(1);
     assertThat(config.getWorkload().completeInstances()).isZero();
     assertThat(config.getWorkload().workerOutputs()).isEmpty();
+    assertThat(config.getWorkload().messages()).isEmpty();
     assertThat(config.getOutput().path()).isEqualTo("build/camunda-workload-generator");
   }
 
@@ -131,7 +146,7 @@ final class ConfigLoaderTest {
             new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
             new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
             new WorkloadConfig.WorkloadSettings(
-                1, 0, Map.of(" ", Map.<String, Object>of("approved", true))),
+                1, 0, Map.of(" ", Map.<String, Object>of("approved", true)), List.of()),
             new WorkloadConfig.OutputConfig("build/output"));
 
     // when / then
@@ -148,12 +163,48 @@ final class ConfigLoaderTest {
             new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
             new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
             new WorkloadConfig.WorkloadSettings(
-                1, 0, Map.of("charge-card", Map.<String, Object>of(" ", true))),
+                1, 0, Map.of("charge-card", Map.<String, Object>of(" ", true)), List.of()),
             new WorkloadConfig.OutputConfig("build/output"));
 
     // when / then
     assertThatThrownBy(config::validate)
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("workload.workerOutputs.charge-card variable name must not be blank");
+  }
+
+  @Test
+  void shouldRejectMessageWithoutExactlyOneCorrelationKeySource() {
+    // given
+    final var config =
+        configWithMessage(
+            new WorkloadConfig.MessageConfig("payment-received", null, null, Map.of(), null));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.messages[0] must set exactly one of correlationKey or correlationKeyExpression");
+  }
+
+  @Test
+  void shouldRejectUnsupportedMessageTiming() {
+    // given
+    final var config =
+        configWithMessage(
+            new WorkloadConfig.MessageConfig(
+                "payment-received", "order-1", null, Map.of(), "beforeProcessStart"));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.messages[0].timing must be afterProcessStart");
+  }
+
+  private static WorkloadConfig configWithMessage(final WorkloadConfig.MessageConfig message) {
+    return new WorkloadConfig(
+        new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+        new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+        new WorkloadConfig.WorkloadSettings(1, 0, Map.of(), List.of(message)),
+        new WorkloadConfig.OutputConfig("build/output"));
   }
 }

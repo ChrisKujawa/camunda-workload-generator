@@ -8,6 +8,7 @@ import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.resources.WorkloadResourceAnalyzer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,7 +40,7 @@ final class ManifestWriterTest {
         new WorkloadConfig(
             new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
             new WorkloadConfig.ResourcesConfig(tempDir.toString(), "invoice", "payload.json"),
-            new WorkloadConfig.WorkloadSettings(10, 4, Map.of()),
+            new WorkloadConfig.WorkloadSettings(10, 4, Map.of(), List.of()),
             new WorkloadConfig.OutputConfig(tempDir.resolve("out").toString()));
     final var resourceAnalysis = new WorkloadResourceAnalyzer().analyze(tempDir);
     final var manifest =

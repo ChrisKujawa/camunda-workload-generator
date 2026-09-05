@@ -30,7 +30,7 @@ public final class WorkloadConfig {
     return new WorkloadConfig(
         new RuntimeConfig("camunda/camunda:8.8.0"),
         new ResourcesConfig("resources", null, null),
-        new WorkloadSettings(1, 0, Map.of()),
+        new WorkloadSettings(1, 0, Map.of(), List.of()),
         new OutputConfig("build/camunda-workload-generator"));
   }
 
@@ -50,7 +50,8 @@ public final class WorkloadConfig {
           new WorkloadSettings(
               choose(raw.workload.startInstances, workload.startInstances()),
               choose(raw.workload.completeInstances, workload.completeInstances()),
-              choose(raw.workload.workerOutputs, workload.workerOutputs()));
+              choose(raw.workload.workerOutputs, workload.workerOutputs()),
+              choose(messages(raw.workload.messages), workload.messages()));
     }
     if (raw.output != null && raw.output.path != null) {
       output = new OutputConfig(raw.output.path);
@@ -80,12 +81,18 @@ public final class WorkloadConfig {
     if (overrides.startInstances() != null) {
       workload =
           new WorkloadSettings(
-              overrides.startInstances(), workload.completeInstances(), workload.workerOutputs());
+              overrides.startInstances(),
+              workload.completeInstances(),
+              workload.workerOutputs(),
+              workload.messages());
     }
     if (overrides.completeInstances() != null) {
       workload =
           new WorkloadSettings(
-              workload.startInstances(), overrides.completeInstances(), workload.workerOutputs());
+              workload.startInstances(),
+              overrides.completeInstances(),
+              workload.workerOutputs(),
+              workload.messages());
     }
     if (overrides.outputPath() != null) {
       output = new OutputConfig(overrides.outputPath());
@@ -105,6 +112,7 @@ public final class WorkloadConfig {
     requireNonNegative("workload.startInstances", workload.startInstances(), errors);
     requireNonNegative("workload.completeInstances", workload.completeInstances(), errors);
     validateWorkerOutputs(workload.workerOutputs(), errors);
+    validateMessages(workload.messages(), errors);
     if (workload.completeInstances() > workload.startInstances()) {
       errors.add("workload.completeInstances must be less than or equal to workload.startInstances");
     }
@@ -155,14 +163,52 @@ public final class WorkloadConfig {
   public record ResourcesConfig(String directory, String rootProcessId, String payload) {}
 
   public record WorkloadSettings(
-      int startInstances, int completeInstances, Map<String, Map<String, Object>> workerOutputs) {
+      int startInstances,
+      int completeInstances,
+      Map<String, Map<String, Object>> workerOutputs,
+      List<MessageConfig> messages) {
 
     public WorkloadSettings {
       workerOutputs = copyWorkerOutputs(workerOutputs);
+      messages = copyMessages(messages);
+    }
+  }
+
+  public record MessageConfig(
+      String name,
+      String correlationKey,
+      String correlationKeyExpression,
+      Map<String, Object> variables,
+      String timing) {
+
+    public static final String AFTER_PROCESS_START = "afterProcessStart";
+
+    public MessageConfig {
+      variables =
+          variables == null
+              ? Map.of()
+              : Collections.unmodifiableMap(new LinkedHashMap<>(variables));
+      timing = timing == null ? AFTER_PROCESS_START : timing;
     }
   }
 
   public record OutputConfig(String path) {}
+
+  private static List<MessageConfig> messages(final List<RawWorkloadConfig.MessageConfig> raw) {
+    if (raw == null) {
+      return null;
+    }
+    return raw.stream()
+        .map(
+            message ->
+                new MessageConfig(
+                    message.name,
+                    message.correlationKey,
+                    message.correlationKeyExpression,
+                    message.variables,
+                    message.timing))
+        .toList();
+  }
 
   private static Map<String, Map<String, Object>> copyWorkerOutputs(
       final Map<String, Map<String, Object>> workerOutputs) {
@@ -195,5 +241,43 @@ public final class WorkloadConfig {
                           variableName,
                           errors));
         });
+  }
+
+  private static List<MessageConfig> copyMessages(final List<MessageConfig> messages) {
+    if (messages == null || messages.isEmpty()) {
+      return List.of();
+    }
+    return List.copyOf(messages);
+  }
+
+  private static void validateMessages(
+      final List<MessageConfig> messages, final List<String> errors) {
+    for (int i = 0; i < messages.size(); i++) {
+      final var message = messages.get(i);
+      final var prefix = "workload.messages[%d]".formatted(i);
+      requireNonBlank(prefix + ".name", message.name(), errors);
+
+      final var hasStaticKey =
+          message.correlationKey() != null && !message.correlationKey().isBlank();
+      final var hasExpressionKey =
+          message.correlationKeyExpression() != null
+              && !message.correlationKeyExpression().isBlank();
+      if (hasStaticKey == hasExpressionKey) {
+        errors.add(
+            prefix
+                + " must set exactly one of correlationKey or correlationKeyExpression");
+      }
+      if (message.timing() == null || message.timing().isBlank()) {
+        errors.add(prefix + ".timing must not be blank");
+      } else if (!MessageConfig.AFTER_PROCESS_START.equals(message.timing())) {
+        errors.add(prefix + ".timing must be afterProcessStart");
+      }
+      message
+          .variables()
+          .keySet()
+          .forEach(
+              variableName ->
+                  requireNonBlank(prefix + ".variables variable name", variableName, errors));
+    }
   }
 }

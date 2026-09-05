@@ -7,6 +7,7 @@ import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.resources.WorkloadResourceAnalysis;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.LongAdder;
 public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
 
   private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(2);
+  private static final Duration MESSAGE_TIME_TO_LIVE = Duration.ofMinutes(5);
 
   @Override
   public WorkloadExecution execute(
@@ -35,6 +37,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
 
     final var completedJobs = new ConcurrentHashMap<String, LongAdder>();
     final var appliedWorkerOutputs = new ConcurrentHashMap<String, LongAdder>();
+    final var publishedMessages = new ConcurrentHashMap<String, LongAdder>();
     try (final var client =
         ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
       completeProcessInstances(
@@ -44,7 +47,9 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
           completeInstances,
           payloadVariables,
           config.getWorkload().workerOutputs(),
+          config.getWorkload().messages(),
           appliedWorkerOutputs,
+          publishedMessages,
           completedJobs);
       startActiveProcessInstances(
           client, rootProcessId, startInstances - completeInstances, payloadVariables);
@@ -56,7 +61,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
         startInstances - completeInstances,
         0,
         count(completedJobs),
-        count(appliedWorkerOutputs));
+        count(appliedWorkerOutputs),
+        count(publishedMessages));
   }
 
   private static void completeProcessInstances(
@@ -66,7 +72,9 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       final int completeInstances,
       final Map<String, Object> payloadVariables,
       final Map<String, Map<String, Object>> workerOutputs,
+      final List<WorkloadConfig.MessageConfig> messages,
       final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs,
+      final ConcurrentHashMap<String, LongAdder> publishedMessages,
       final ConcurrentHashMap<String, LongAdder> completedJobs) {
     if (completeInstances == 0) {
       return;
@@ -77,26 +85,59 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       workers.open();
       for (int i = 0; i < completeInstances; i++) {
         if (payloadVariables.isEmpty()) {
-          client
+          final var result =
+              client
               .newCreateInstanceCommand()
               .bpmnProcessId(rootProcessId)
               .latestVersion()
               .withResult()
               .requestTimeout(COMMAND_TIMEOUT)
-              .send()
-              .join();
+              .send();
+          publishMessages(client, messages, payloadVariables, publishedMessages);
+          result.join();
         } else {
-          client
+          final var result =
+              client
               .newCreateInstanceCommand()
               .bpmnProcessId(rootProcessId)
               .latestVersion()
               .variables(payloadVariables)
               .withResult()
               .requestTimeout(COMMAND_TIMEOUT)
-              .send()
-              .join();
+              .send();
+          publishMessages(client, messages, payloadVariables, publishedMessages);
+          result.join();
         }
       }
+    }
+  }
+
+  private static void publishMessages(
+      final ZeebeClient client,
+      final List<WorkloadConfig.MessageConfig> messages,
+      final Map<String, Object> payloadVariables,
+      final ConcurrentHashMap<String, LongAdder> publishedMessages) {
+    for (final var message : messages) {
+      final var correlationKey = MessageCorrelationKeyResolver.resolve(message, payloadVariables);
+      if (message.variables().isEmpty()) {
+        client
+            .newPublishMessageCommand()
+            .messageName(message.name())
+            .correlationKey(correlationKey)
+            .timeToLive(MESSAGE_TIME_TO_LIVE)
+            .send()
+            .join();
+      } else {
+        client
+            .newPublishMessageCommand()
+            .messageName(message.name())
+            .correlationKey(correlationKey)
+            .variables(message.variables())
+            .timeToLive(MESSAGE_TIME_TO_LIVE)
+            .send()
+            .join();
+      }
+      publishedMessages.computeIfAbsent(message.name(), ignored -> new LongAdder()).increment();
     }
   }
 

@@ -1,5 +1,6 @@
 package io.zell.cwg.config;
 
+import java.util.List;
 import java.util.Map;
 
 public final class RawWorkloadConfig {
@@ -22,6 +23,15 @@ public final class RawWorkloadConfig {
     public Integer startInstances;
     public Integer completeInstances;
     public Map<String, Map<String, Object>> workerOutputs;
+    public List<MessageConfig> messages;
+  }
+
+  public static final class MessageConfig {
+    public String name;
+    public String correlationKey;
+    public String correlationKeyExpression;
+    public Map<String, Object> variables;
+    public String timing;
   }
 
   public static final class OutputConfig {

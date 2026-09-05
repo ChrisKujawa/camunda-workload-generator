@@ -9,14 +9,16 @@ public record WorkloadExecution(
     long activeInstances,
     long createdIncidents,
     Map<String, Long> completedJobs,
-    Map<String, Long> appliedWorkerOutputs) {
+    Map<String, Long> appliedWorkerOutputs,
+    Map<String, Long> publishedMessages) {
 
   public WorkloadExecution {
     completedJobs = new LinkedHashMap<>(completedJobs);
     appliedWorkerOutputs = new LinkedHashMap<>(appliedWorkerOutputs);
+    publishedMessages = new LinkedHashMap<>(publishedMessages);
   }
 
   public static WorkloadExecution skipped() {
-    return new WorkloadExecution(0, 0, 0, 0, Map.of(), Map.of());
+    return new WorkloadExecution(0, 0, 0, 0, Map.of(), Map.of(), Map.of());
   }
 }

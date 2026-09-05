@@ -76,7 +76,8 @@ final class RuntimeWorkloadGeneratorTest {
                   1,
                   0,
                   java.util.Map.of("charge-card", 2L),
-                  java.util.Map.of("charge-card", 1L));
+                  java.util.Map.of("charge-card", 1L),
+                  java.util.Map.of("payment-received", 2L));
             },
             new io.zell.cwg.workload.PayloadVariablesLoader(),
             new io.zell.cwg.artifacts.ManifestWriter(),
@@ -90,7 +91,12 @@ final class RuntimeWorkloadGeneratorTest {
                 new RuntimeConfig("camunda/camunda:8.8.0"),
                 new ResourcesConfig(resources.toString(), "invoice", "payload.json"),
                 new WorkloadSettings(
-                    3, 2, Map.of("charge-card", Map.<String, Object>of("approved", true))),
+                    3,
+                    2,
+                    Map.of("charge-card", Map.<String, Object>of("approved", true)),
+                    List.of(
+                        new WorkloadConfig.MessageConfig(
+                            "payment-received", "C-123", null, Map.of("paid", true), null))),
                 new OutputConfig(output.toString())));
 
     // then
@@ -118,9 +124,11 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"activeInstances\" : 1")
         .contains("\"detectedJobTypes\" : [ \"charge-card\" ]")
         .contains("\"completedJobs\"")
-        .contains("\"appliedWorkerOutputs\"");
+        .contains("\"appliedWorkerOutputs\"")
+        .contains("\"publishedMessages\"");
     assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
     assertThat(report.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(1);
+    assertThat(report.get("publishedMessages").get("payment-received").asLong()).isEqualTo(2);
   }
 
   @Test
@@ -148,7 +156,7 @@ final class RuntimeWorkloadGeneratorTest {
                     new WorkloadConfig(
                         new RuntimeConfig("camunda/camunda:8.8.0"),
                         new ResourcesConfig(resources.toString(), "invoice", null),
-                        new WorkloadSettings(3, 0, Map.of()),
+                        new WorkloadSettings(3, 0, Map.of(), List.of()),
                         new OutputConfig(tempDir.resolve("output").toString()))));
 
     // then
@@ -190,7 +198,7 @@ final class RuntimeWorkloadGeneratorTest {
                     new WorkloadConfig(
                         new RuntimeConfig("camunda/camunda:8.8.0"),
                         new ResourcesConfig(resources.toString(), "invoice", "missing.json"),
-                        new WorkloadSettings(1, 0, Map.of()),
+                        new WorkloadSettings(1, 0, Map.of(), List.of()),
                         new OutputConfig(tempDir.resolve("output").toString()))));
 
     // then
