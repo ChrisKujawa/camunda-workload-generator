@@ -1,5 +1,6 @@
 package io.zell.cwg.config;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -456,6 +457,7 @@ public final class WorkloadConfig {
       }
       if (SecondaryStorageConfig.MODE_ATTACHED.equals(secondaryStorage.mode())) {
         requireNonBlank(prefix + ".url", secondaryStorage.url(), errors);
+        validateHttpUrl(prefix + ".url", secondaryStorage.url(), errors);
       }
       if (SecondaryStorageConfig.MODE_MANAGED.equals(secondaryStorage.mode())
           && secondaryStorage.image() != null) {
@@ -475,6 +477,21 @@ public final class WorkloadConfig {
       }
     } catch (final RuntimeException e) {
       errors.add(prefix + ".waitTimeout must be an ISO-8601 duration");
+    }
+  }
+
+  private static void validateHttpUrl(
+      final String name, final String value, final List<String> errors) {
+    if (value == null || value.isBlank()) {
+      return;
+    }
+    try {
+      final var uri = URI.create(value);
+      if (!List.of("http", "https").contains(uri.getScheme()) || uri.getHost() == null) {
+        errors.add(name + " must be a valid http(s) URI");
+      }
+    } catch (final IllegalArgumentException e) {
+      errors.add(name + " must be a valid http(s) URI");
     }
   }
 

@@ -186,6 +186,25 @@ final class ConfigLoaderTest {
   }
 
   @Test
+  void shouldRejectInvalidAttachedSecondaryStorageUrl() throws Exception {
+    // given
+    final var configFile = tempDir.resolve("workload.yaml");
+    Files.writeString(
+        configFile,
+        """
+        secondaryStorage:
+          mode: attached
+          type: opensearch
+          url: localhost:9200
+        """);
+
+    // when / then
+    assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("secondaryStorage.url must be a valid http(s) URI");
+  }
+
+  @Test
   void shouldRejectBlankPayloadPath() throws Exception {
     // given
     final var configFile = tempDir.resolve("workload.yaml");
