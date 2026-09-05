@@ -15,8 +15,11 @@ import io.zell.cwg.deployment.ResourceDeployment;
 import io.zell.cwg.deployment.ZeebeResourceDeployment;
 import io.zell.cwg.resources.WorkloadResourceAnalysis;
 import io.zell.cwg.resources.WorkloadResourceAnalyzer;
+import io.zell.cwg.secondary.SecondaryStorageReporter;
 import io.zell.cwg.runtime.CamundaRuntimeFactory;
 import io.zell.cwg.runtime.ManagedCamundaRuntime;
+import io.zell.cwg.runtime.SecondaryStorageEndpoint;
+import io.zell.cwg.runtime.SecondaryStorageRuntime;
 import io.zell.cwg.runtime.ZeebeDataArtifactSource;
 import io.zell.cwg.workload.PayloadVariablesLoader;
 import io.zell.cwg.workload.WorkloadExecution;
@@ -34,6 +37,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
   private final ResourceDeployment resourceDeployment;
   private final WorkloadExecutor workloadExecutor;
   private final PayloadVariablesLoader payloadVariablesLoader;
+  private final SecondaryStorageReporter secondaryStorageReporter;
   private final ManifestWriter manifestWriter;
   private final ReportWriter reportWriter;
   private final Clock clock;
@@ -45,6 +49,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         new ZeebeResourceDeployment(),
         new ZeebeWorkloadExecutor(),
         new PayloadVariablesLoader(),
+        new SecondaryStorageReporter(),
         new ManifestWriter(),
         new ReportWriter(),
         Clock.systemUTC());
@@ -56,6 +61,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       final ResourceDeployment resourceDeployment,
       final WorkloadExecutor workloadExecutor,
       final PayloadVariablesLoader payloadVariablesLoader,
+      final SecondaryStorageReporter secondaryStorageReporter,
       final ManifestWriter manifestWriter,
       final ReportWriter reportWriter,
       final Clock clock) {
@@ -64,6 +70,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     this.resourceDeployment = resourceDeployment;
     this.workloadExecutor = workloadExecutor;
     this.payloadVariablesLoader = payloadVariablesLoader;
+    this.secondaryStorageReporter = secondaryStorageReporter;
     this.manifestWriter = manifestWriter;
     this.reportWriter = reportWriter;
     this.clock = clock;
@@ -83,8 +90,10 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     final int deployedResources;
     final WorkloadExecution workloadExecution;
     final ZeebeDataArtifacts zeebeDataArtifacts;
-    try (final var runtime = runtimeFactory.create(config.getRuntime())) {
+    final SecondaryStorageReport secondaryStorageReport;
+    try (final var runtime = runtimeFactory.create(config)) {
       final var zeebeDataArtifactSource = zeebeDataArtifactSource(runtime);
+      validateSecondaryStorageRuntime(config, runtime);
       runtime.start();
       final var deployment =
           resourceDeployment.deploy(
@@ -93,6 +102,9 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       workloadExecution =
           workloadExecutor.execute(
               runtime.gatewayAddress(), config, resourceAnalysis, payloadVariables);
+      secondaryStorageReport =
+          secondaryStorageReporter.report(
+              config.getSecondaryStorage(), secondaryStorageEndpoint(config, runtime));
       zeebeDataArtifacts =
           zeebeDataArtifactSource.writeZeebeData(
               outputDirectory, config.getOutput().zipZeebeData());
@@ -107,7 +119,12 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     final var reportPath =
         reportWriter.write(
             outputDirectory,
-            reportFrom(resourceAnalysis, workloadExecution, zeebeDataArtifacts, generatedAt));
+            reportFrom(
+                resourceAnalysis,
+                workloadExecution,
+                zeebeDataArtifacts,
+                secondaryStorageReport,
+                generatedAt));
 
     return new GenerationResult(deployedResources, manifestPath, reportPath);
   }
@@ -116,6 +133,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       final WorkloadResourceAnalysis resourceAnalysis,
       final WorkloadExecution workloadExecution,
       final ZeebeDataArtifacts zeebeDataArtifacts,
+      final SecondaryStorageReport secondaryStorageReport,
       final String generatedAt) {
     return new WorkloadReport(
         "1",
@@ -134,7 +152,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         workloadExecution.publishedMessages(),
         workloadExecution.completedUserTasks(),
         ZeebeDataReport.from(zeebeDataArtifacts),
-        SecondaryStorageReport.skipped());
+        secondaryStorageReport);
   }
 
   private static ZeebeDataArtifactSource zeebeDataArtifactSource(final AutoCloseable runtime) {
@@ -144,5 +162,25 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     throw new ConfigException(
         "Configured runtime does not support Zeebe data artifact output: "
             + runtime.getClass().getName());
+  }
+
+  private static void validateSecondaryStorageRuntime(
+      final WorkloadConfig config, final AutoCloseable runtime) {
+    if (!WorkloadConfig.SecondaryStorageConfig.MODE_DISABLED.equals(
+            config.getSecondaryStorage().mode())
+        && !(runtime instanceof SecondaryStorageRuntime)) {
+      throw new ConfigException(
+          "Configured runtime does not support secondary-storage output: "
+              + runtime.getClass().getName());
+    }
+  }
+
+  private static java.util.Optional<SecondaryStorageEndpoint> secondaryStorageEndpoint(
+      final WorkloadConfig config, final AutoCloseable runtime) {
+    if (WorkloadConfig.SecondaryStorageConfig.MODE_DISABLED.equals(
+        config.getSecondaryStorage().mode())) {
+      return java.util.Optional.empty();
+    }
+    return ((SecondaryStorageRuntime) runtime).secondaryStorageEndpoint();
   }
 }

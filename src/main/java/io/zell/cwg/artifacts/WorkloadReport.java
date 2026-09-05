@@ -29,9 +29,17 @@ public record WorkloadReport(
   public record RunSummary(
       long startedInstances, long completedInstances, long activeInstances, long createdIncidents) {}
 
-  public record SecondaryStorageReport(boolean ingestionWaited, String type, String status) {
+  public record SecondaryStorageReport(
+      boolean ingestionWaited,
+      String type,
+      String status,
+      String mode,
+      String endpoint,
+      long indexes,
+      long documents,
+      long storeSizeBytes) {
     public static SecondaryStorageReport skipped() {
-      return new SecondaryStorageReport(false, null, "skipped");
+      return new SecondaryStorageReport(false, null, "skipped", "disabled", null, 0, 0, 0);
     }
   }
 

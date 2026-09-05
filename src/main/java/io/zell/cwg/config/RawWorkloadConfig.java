@@ -8,6 +8,7 @@ public final class RawWorkloadConfig {
   public RuntimeConfig runtime;
   public ResourcesConfig resources;
   public WorkloadSettings workload;
+  public SecondaryStorageConfig secondaryStorage;
   public OutputConfig output;
 
   public static final class RuntimeConfig {
@@ -39,6 +40,15 @@ public final class RawWorkloadConfig {
     public String elementId;
     public String name;
     public Map<String, Object> variables;
+  }
+
+  public static final class SecondaryStorageConfig {
+    public String mode;
+    public String type;
+    public String url;
+    public String image;
+    public Boolean waitForIngestion;
+    public String waitTimeout;
   }
 
   public static final class OutputConfig {

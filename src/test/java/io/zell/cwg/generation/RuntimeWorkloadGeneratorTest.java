@@ -12,6 +12,7 @@ import io.zell.cwg.config.WorkloadConfig.WorkloadSettings;
 import io.zell.cwg.deployment.DeploymentResult;
 import io.zell.cwg.runtime.CamundaRuntime;
 import io.zell.cwg.runtime.ZeebeDataArtifactSource;
+import io.zell.cwg.secondary.SecondaryStorageReporter;
 import io.zell.cwg.workload.WorkloadExecution;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,6 +85,7 @@ final class RuntimeWorkloadGeneratorTest {
                   java.util.Map.of("approve_invoice", 2L));
             },
             new io.zell.cwg.workload.PayloadVariablesLoader(),
+            new SecondaryStorageReporter(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
@@ -164,6 +166,7 @@ final class RuntimeWorkloadGeneratorTest {
             (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
             (gatewayAddress, config, analysis, payloadVariables) -> WorkloadExecution.skipped(),
             new io.zell.cwg.workload.PayloadVariablesLoader(),
+            new SecondaryStorageReporter(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
@@ -206,6 +209,7 @@ final class RuntimeWorkloadGeneratorTest {
             (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
             (gatewayAddress, config, analysis, payloadVariables) -> WorkloadExecution.skipped(),
             new io.zell.cwg.workload.PayloadVariablesLoader(),
+            new SecondaryStorageReporter(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
@@ -252,6 +256,7 @@ final class RuntimeWorkloadGeneratorTest {
               throw new AssertionError("workload must not run");
             },
             new io.zell.cwg.workload.PayloadVariablesLoader(),
+            new SecondaryStorageReporter(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));

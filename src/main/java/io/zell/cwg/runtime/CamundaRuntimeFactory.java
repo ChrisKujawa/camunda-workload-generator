@@ -5,5 +5,5 @@ import io.zell.cwg.config.WorkloadConfig;
 @FunctionalInterface
 public interface CamundaRuntimeFactory {
 
-  CamundaRuntime create(WorkloadConfig.RuntimeConfig config);
+  CamundaRuntime create(WorkloadConfig config);
 }
