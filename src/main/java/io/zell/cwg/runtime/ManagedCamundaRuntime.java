@@ -135,12 +135,29 @@ public final class ManagedCamundaRuntime
 
   @Override
   public void close() {
-    container.stop();
+    RuntimeException failure = cleanup(container::stop, null);
     if (secondaryStorageContainer != null) {
-      secondaryStorageContainer.stop();
+      failure = cleanup(secondaryStorageContainer::stop, failure);
     }
     if (network != null) {
-      network.close();
+      failure = cleanup(network::close, failure);
+    }
+    if (failure != null) {
+      throw failure;
+    }
+  }
+
+  private static RuntimeException cleanup(
+      final CleanupAction action, final RuntimeException failure) {
+    try {
+      action.run();
+      return failure;
+    } catch (final RuntimeException e) {
+      if (failure == null) {
+        return e;
+      }
+      failure.addSuppressed(e);
+      return failure;
     }
   }
 
@@ -226,5 +243,10 @@ public final class ManagedCamundaRuntime
           .withTimeout(CLEAN_STOP_TIMEOUT_SECONDS)
           .exec();
     }
+  }
+
+  @FunctionalInterface
+  private interface CleanupAction {
+    void run();
   }
 }
