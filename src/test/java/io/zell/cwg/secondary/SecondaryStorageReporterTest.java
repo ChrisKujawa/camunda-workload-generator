@@ -102,7 +102,7 @@ final class SecondaryStorageReporterTest {
     final var server = startIndexServer("[]");
     final var endpoint =
         new SecondaryStorageEndpoint(
-            "attached", "opensearch", "http://localhost:" + server.getAddress().getPort());
+            "attached", "opensearch", "http://localhost:" + server.getAddress().getPort() + "/");
     final var clock = new TickingClock(Instant.parse("2026-09-05T05:00:00Z"));
     final var reporter =
         new SecondaryStorageReporter(

@@ -175,7 +175,7 @@ secondaryStorage:
 secondaryStorage:
   mode: attached
   type: elasticsearch
-  url: http://localhost:9200
+  url: http://host.testcontainers.internal:9200
   waitForIngestion: true
 ```
 

@@ -80,7 +80,7 @@ public final class SecondaryStorageReporter {
   private StorageStats fetchStats(final SecondaryStorageEndpoint endpoint) throws IOException {
     final var request =
         HttpRequest.newBuilder()
-            .uri(URI.create(endpoint.url() + "/_cat/indices?format=json&bytes=b"))
+            .uri(indexStatsUri(endpoint))
             .timeout(Duration.ofSeconds(10))
             .GET()
             .build();
@@ -135,6 +135,11 @@ public final class SecondaryStorageReporter {
     } catch (final NumberFormatException e) {
       return 0;
     }
+  }
+
+  private static URI indexStatsUri(final SecondaryStorageEndpoint endpoint) {
+    final var baseUrl = endpoint.url().endsWith("/") ? endpoint.url() : endpoint.url() + "/";
+    return URI.create(baseUrl).resolve("_cat/indices?format=json&bytes=b");
   }
 
   private record StorageStats(long indexes, long documents, long storeSizeBytes) {}
