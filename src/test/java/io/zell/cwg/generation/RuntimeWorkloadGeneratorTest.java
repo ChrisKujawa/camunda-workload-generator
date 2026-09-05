@@ -11,6 +11,7 @@ import io.zell.cwg.config.WorkloadConfig.RuntimeConfig;
 import io.zell.cwg.config.WorkloadConfig.WorkloadSettings;
 import io.zell.cwg.deployment.DeploymentResult;
 import io.zell.cwg.runtime.CamundaRuntime;
+import io.zell.cwg.runtime.ZeebeDataArtifactSource;
 import io.zell.cwg.workload.WorkloadExecution;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -98,7 +99,7 @@ final class RuntimeWorkloadGeneratorTest {
                     List.of(
                         new WorkloadConfig.MessageConfig(
                             "payment-received", "C-123", null, Map.of("paid", true), null))),
-                new OutputConfig(output.toString())));
+                new OutputConfig(output.toString(), true)));
 
     // then
     assertThat(runtime.started).isTrue();
@@ -117,8 +118,13 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"image\" : \"camunda/camunda:8.8.0\"")
         .contains("\"rootProcessId\" : \"invoice\"")
         .contains("\"payload\" : \"payload.json\"")
-        .contains("\"path\" : \"invoice.bpmn\"");
+        .contains("\"path\" : \"invoice.bpmn\"")
+        .contains("\"zeebeData\" : \"zeebe-data/\"")
+        .contains("\"zeebeDataZip\" : \"zeebe-data.zip\"");
     final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(output.resolve("zeebe-data/partitions/1/runtime/state/data.txt"))
+        .hasContent("zeebe data");
+    assertThat(output.resolve("zeebe-data.zip")).exists().isRegularFile();
     assertThat(Files.readString(result.reportPath()))
         .contains("\"startedInstances\" : 3")
         .contains("\"completedInstances\" : 2")
@@ -127,11 +133,16 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"completedJobs\"")
         .contains("\"appliedWorkerOutputs\"")
         .contains("\"publishedMessages\"")
-        .contains("\"completedUserTasks\"");
+        .contains("\"completedUserTasks\"")
+        .contains("\"zeebeData\"");
     assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
     assertThat(report.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(1);
     assertThat(report.get("publishedMessages").get("payment-received").asLong()).isEqualTo(2);
     assertThat(report.get("completedUserTasks").get("approve_invoice").asLong()).isEqualTo(2);
+    assertThat(report.get("zeebeData").get("directory").asText()).isEqualTo("zeebe-data/");
+    assertThat(report.get("zeebeData").get("zip").asText()).isEqualTo("zeebe-data.zip");
+    assertThat(report.get("zeebeData").get("files").asLong()).isEqualTo(1);
+    assertThat(report.get("zeebeData").get("bytes").asLong()).isEqualTo(10);
   }
 
   @Test
@@ -211,7 +222,7 @@ final class RuntimeWorkloadGeneratorTest {
     assertThat(runtime.started).isFalse();
   }
 
-  private static final class FakeRuntime implements CamundaRuntime {
+  private static final class FakeRuntime implements CamundaRuntime, ZeebeDataArtifactSource {
 
     private boolean started;
     private boolean closed;
@@ -229,6 +240,20 @@ final class RuntimeWorkloadGeneratorTest {
     @Override
     public void close() {
       closed = true;
+    }
+
+    @Override
+    public io.zell.cwg.artifacts.ZeebeDataArtifacts writeZeebeData(
+        final Path outputDirectory, final boolean zip) throws java.io.IOException {
+      final var writer = new io.zell.cwg.artifacts.ZeebeDataArtifactWriter();
+      return writer.write(
+          outputDirectory,
+          targetDirectory -> {
+            final var dataFile = targetDirectory.resolve("partitions/1/runtime/state/data.txt");
+            Files.createDirectories(dataFile.getParent());
+            Files.writeString(dataFile, "zeebe data");
+          },
+          zip);
     }
   }
 }

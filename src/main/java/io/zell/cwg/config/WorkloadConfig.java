@@ -31,7 +31,7 @@ public final class WorkloadConfig {
         new RuntimeConfig("camunda/camunda:8.8.0"),
         new ResourcesConfig("resources", null, null),
         new WorkloadSettings(1, 0, Map.of(), List.of(), List.of()),
-        new OutputConfig("build/camunda-workload-generator"));
+        new OutputConfig("build/camunda-workload-generator", false));
   }
 
   public void merge(final RawWorkloadConfig raw) {
@@ -54,8 +54,11 @@ public final class WorkloadConfig {
               choose(messages(raw.workload.messages), workload.messages()),
               choose(userTasks(raw.workload.userTasks), workload.userTasks()));
     }
-    if (raw.output != null && raw.output.path != null) {
-      output = new OutputConfig(raw.output.path);
+    if (raw.output != null) {
+      output =
+          new OutputConfig(
+              choose(raw.output.path, output.path()),
+              choose(raw.output.zipZeebeData, output.zipZeebeData()));
     }
   }
 
@@ -98,7 +101,7 @@ public final class WorkloadConfig {
               workload.userTasks());
     }
     if (overrides.outputPath() != null) {
-      output = new OutputConfig(overrides.outputPath());
+      output = new OutputConfig(overrides.outputPath(), output.zipZeebeData());
     }
   }
 
@@ -216,7 +219,11 @@ public final class WorkloadConfig {
     }
   }
 
-  public record OutputConfig(String path) {}
+  public record OutputConfig(String path, boolean zipZeebeData) {
+    public OutputConfig(final String path) {
+      this(path, false);
+    }
+  }
 
   private static List<MessageConfig> messages(final List<RawWorkloadConfig.MessageConfig> raw) {
     if (raw == null) {

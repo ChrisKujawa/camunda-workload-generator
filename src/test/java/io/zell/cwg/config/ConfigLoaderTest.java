@@ -44,6 +44,7 @@ final class ConfigLoaderTest {
                 approved: true
         output:
           path: build/config-output
+          zipZeebeData: true
         """);
 
     // when
@@ -81,6 +82,7 @@ final class ConfigLoaderTest {
             new WorkloadConfig.UserTaskConfig(
                 null, "Approve invoice", Map.of("approved", true)));
     assertThat(config.getOutput().path()).isEqualTo("build/cli-output");
+    assertThat(config.getOutput().zipZeebeData()).isTrue();
   }
 
   @Test
@@ -98,6 +100,7 @@ final class ConfigLoaderTest {
     assertThat(config.getWorkload().messages()).isEmpty();
     assertThat(config.getWorkload().userTasks()).isEmpty();
     assertThat(config.getOutput().path()).isEqualTo("build/camunda-workload-generator");
+    assertThat(config.getOutput().zipZeebeData()).isFalse();
   }
 
   @Test
