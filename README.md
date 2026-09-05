@@ -36,9 +36,9 @@ repository should avoid depending on ZDB internals.
 
 ## Status
 
-The first milestone is a non-Docker foundation. The CLI and config foundation
-exists; resource scanning, BPMN analysis, and manifest/report models are planned
-follow-up slices.
+The first milestone is a non-Docker foundation. The CLI, config foundation,
+resource scanning, and static BPMN analysis exist; manifest/report models are a
+planned follow-up slice.
 
 ## Development
 
@@ -56,6 +56,7 @@ configuration printing without starting Docker:
 ```bash
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar validate --config workload.yaml
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar print-config --config workload.yaml
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-resources --config workload.yaml
 ```
 
 Configuration precedence is:
@@ -87,3 +88,15 @@ Major updates stay manual.
 
 The repository uses Renovate-managed automerge instead of platform automerge so
 updates wait for status checks before merging.
+
+## Resource analysis
+
+`analyze-resources` scans the configured resource directory recursively. It
+classifies deployable resources separately from payload/config inputs:
+
+- Deployable: `*.bpmn`, `*.dmn`, `*.form`
+- Payload/config inputs: `*.json`, `*.yaml`, `*.yml`
+
+BPMN analysis reports process IDs, static Zeebe job types, call activities,
+message references, and DMN decision references where they can be read from the
+model without executing a runtime.
