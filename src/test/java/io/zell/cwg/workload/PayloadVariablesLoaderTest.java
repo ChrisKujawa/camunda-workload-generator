@@ -129,7 +129,7 @@ final class PayloadVariablesLoaderTest {
     return new WorkloadConfig(
         new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
         new WorkloadConfig.ResourcesConfig(resources.toString(), "invoice", payload),
-        new WorkloadConfig.WorkloadSettings(1, 0),
+        new WorkloadConfig.WorkloadSettings(1, 0, Map.of()),
         new WorkloadConfig.OutputConfig("build/output"));
   }
 }

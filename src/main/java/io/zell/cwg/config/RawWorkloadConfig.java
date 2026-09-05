@@ -1,5 +1,7 @@
 package io.zell.cwg.config;
 
+import java.util.Map;
+
 public final class RawWorkloadConfig {
 
   public RuntimeConfig runtime;
@@ -19,6 +21,7 @@ public final class RawWorkloadConfig {
   public static final class WorkloadSettings {
     public Integer startInstances;
     public Integer completeInstances;
+    public Map<String, Map<String, Object>> workerOutputs;
   }
 
   public static final class OutputConfig {

@@ -9,6 +9,7 @@ import io.zell.cwg.artifacts.WorkloadReport.SecondaryStorageReport;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,6 +29,7 @@ final class ReportWriterTest {
             new RunSummary(10, 4, 6, 0),
             List.of("charge-card"),
             completedJobs,
+            Map.of("charge-card", 4L),
             SecondaryStorageReport.skipped());
 
     // when
@@ -40,6 +42,7 @@ final class ReportWriterTest {
     assertThat(json.get("workload").get("completedInstances").asLong()).isEqualTo(4);
     assertThat(json.get("detectedJobTypes").get(0).asText()).isEqualTo("charge-card");
     assertThat(json.get("completedJobs").get("charge-card").asLong()).isEqualTo(4);
+    assertThat(json.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(4);
     assertThat(json.get("secondaryStorage").get("status").asText()).isEqualTo("skipped");
   }
 }
