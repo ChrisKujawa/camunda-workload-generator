@@ -39,7 +39,7 @@ final class RealisticExampleTest {
     final var payload = new PayloadVariablesLoader().load(config);
 
     // then
-    assertThat(config.getResources().rootProcessId()).isEqualTo("refundingProcess");
+    assertThat(config.getResources().rootProcessId()).isEqualTo("bankDisputeHandling");
     assertThat(config.getWorkload().completeInstances()).isEqualTo(1);
     assertThat(config.getResources().payload()).isEqualTo("payload.json");
     assertThat(analysis.processIds()).contains("bankDisputeHandling", "refundingProcess");
@@ -60,6 +60,7 @@ final class RealisticExampleTest {
         .extracting("calledProcessId")
         .contains("refundingProcess");
     assertThat(payload).containsEntry("customer_claim_frequency", 1);
+    assertThat(payload).containsEntry("needsManualReview", false);
     assertThat(payload).containsEntry("vendor_claim_frequency", 5);
   }
 }

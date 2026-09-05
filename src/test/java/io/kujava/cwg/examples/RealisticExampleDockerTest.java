@@ -60,7 +60,9 @@ final class RealisticExampleDockerTest {
     assertThat(report.get("workload").get("startedInstances").asLong()).isEqualTo(5);
     assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
     assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(4);
-    assertThat(report.get("completedJobs").get("refunding").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("customer_notification").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("extract_data_from_document").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("inform_about_failed_claim").asLong()).isEqualTo(1);
     assertThat(report.get("completedUserTasks").isEmpty()).isTrue();
     assertThat(report.get("zeebeData").get("files").asLong()).isPositive();
     assertThat(report.get("secondaryStorage").get("status").asText()).isEqualTo("skipped");
