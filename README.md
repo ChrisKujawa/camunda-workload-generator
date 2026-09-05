@@ -48,6 +48,7 @@ This project uses Java 21 and Maven.
 ```bash
 mvn test
 mvn package
+mvn license:format
 mvn fmt:format
 mvn checkstyle:check
 mvn spotbugs:spotbugs
@@ -58,10 +59,9 @@ java -jar target/camunda-workload-generator-*.jar --help
 `mvn package` creates `target/camunda-workload-generator-*.jar` as an
 executable, dependency-including JAR.
 
-Maven's `validate` phase applies license headers and Google Java Format. The
-`verify` phase also enforces Checkstyle and runs SpotBugs in advisory mode.
-SpotBugs findings should be fixed incrementally before making that check fail
-the build.
+`mvn verify` checks license headers, Google Java Format, Checkstyle, and
+SpotBugs. SpotBugs runs in advisory mode. Apply license headers and formatting
+explicitly with `mvn license:format fmt:format`.
 
 The default Maven test path skips Docker-tagged tests. Run the `docker` group
 explicitly when validating managed runtime behavior. Docker tests are skipped

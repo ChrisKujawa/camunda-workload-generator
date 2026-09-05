@@ -114,9 +114,9 @@
         </configuration>
         <executions>
           <execution>
-            <phase>validate</phase>
+            <phase>verify</phase>
             <goals>
-              <goal>format</goal>
+              <goal>check</goal>
             </goals>
           </execution>
         </executions>
@@ -138,9 +138,9 @@
         </configuration>
         <executions>
           <execution>
-            <phase>validate</phase>
+            <phase>verify</phase>
             <goals>
-              <goal>format</goal>
+              <goal>check</goal>
             </goals>
           </execution>
         </executions>
