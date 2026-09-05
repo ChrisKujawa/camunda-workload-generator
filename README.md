@@ -49,7 +49,7 @@ This project uses Java 21 and Maven.
 mvn test
 mvn package
 mvn test -Dgroups=docker -Dsurefire.excludedGroups=
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar --help
+java -jar target/camunda-workload-generator-*.jar --help
 ```
 
 The default Maven test path skips Docker-tagged tests. Run the `docker` group
@@ -62,11 +62,11 @@ The CLI supports configuration validation, effective configuration printing,
 resource analysis, managed runtime deployment, and basic workload execution:
 
 ```bash
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar validate --config workload.yaml
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar print-config --config workload.yaml
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-resources --config workload.yaml
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-process model.bpmn --process invoice
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate --config workload.yaml
+java -jar target/camunda-workload-generator-*.jar validate --config workload.yaml
+java -jar target/camunda-workload-generator-*.jar print-config --config workload.yaml
+java -jar target/camunda-workload-generator-*.jar analyze-resources --config workload.yaml
+java -jar target/camunda-workload-generator-*.jar analyze-process model.bpmn --process invoice
+java -jar target/camunda-workload-generator-*.jar generate --config workload.yaml
 ```
 
 Configuration precedence is:
@@ -232,12 +232,13 @@ written.
 ### Small local fixture generation
 
 Use CLI overrides when the resource folder is simple and the generated artifact
-layout does not need to be shared:
+layout does not need to be shared. Replace `path/to/resources` with a folder
+that contains deployable BPMN, DMN, or form resources:
 
 ```bash
 mvn package
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate \
-  --resources src/test/resources/workload \
+java -jar target/camunda-workload-generator-*.jar generate \
+  --resources path/to/resources \
   --root-process invoice \
   --start-instances 5 \
   --complete-instances 2 \
@@ -255,12 +256,12 @@ DMN, form, payload, and user-task completion together:
 
 ```bash
 mvn package
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-resources \
+java -jar target/camunda-workload-generator-*.jar analyze-resources \
   --config examples/realistic/workload.yaml
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-process \
+java -jar target/camunda-workload-generator-*.jar analyze-process \
   examples/realistic/bankCustomerComplaintDisputeHandling.bpmn \
   --process bankDisputeHandling
-java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate \
+java -jar target/camunda-workload-generator-*.jar generate \
   --config examples/realistic/workload.yaml
 ```
 
