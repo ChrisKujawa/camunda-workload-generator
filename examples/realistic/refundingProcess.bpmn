@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+    id="Definitions_refunding"
+    targetNamespace="http://camunda.io/schema/bpmn">
+  <bpmn:process id="refundingProcess" name="Refunding Process" isExecutable="true">
+    <bpmn:startEvent id="start_refunding" name="Start refunding">
+      <bpmn:outgoing>flow_start_to_refund</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_start_to_refund" sourceRef="start_refunding" targetRef="refund_payment" />
+    <bpmn:serviceTask id="refund_payment" name="Refund payment">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="refunding" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_refund</bpmn:incoming>
+      <bpmn:outgoing>flow_refund_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_refund_to_end" sourceRef="refund_payment" targetRef="refunding_completed" />
+    <bpmn:endEvent id="refunding_completed" name="Refunding completed">
+      <bpmn:incoming>flow_refund_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>
