@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -27,6 +28,9 @@ final class ConfigLoaderTest {
           payload: config-payload.json
         workload:
           startInstances: 10
+          workerOutputs:
+            charge-card:
+              approved: true
         output:
           path: build/config-output
         """);
@@ -51,6 +55,8 @@ final class ConfigLoaderTest {
     assertThat(config.getResources().payload()).isEqualTo("cli-payload.json");
     assertThat(config.getWorkload().startInstances()).isEqualTo(10);
     assertThat(config.getWorkload().completeInstances()).isEqualTo(7);
+    assertThat(config.getWorkload().workerOutputs())
+        .containsEntry("charge-card", Map.of("approved", true));
     assertThat(config.getOutput().path()).isEqualTo("build/cli-output");
   }
 
@@ -65,6 +71,7 @@ final class ConfigLoaderTest {
     assertThat(config.getResources().payload()).isNull();
     assertThat(config.getWorkload().startInstances()).isEqualTo(1);
     assertThat(config.getWorkload().completeInstances()).isZero();
+    assertThat(config.getWorkload().workerOutputs()).isEmpty();
     assertThat(config.getOutput().path()).isEqualTo("build/camunda-workload-generator");
   }
 
@@ -114,5 +121,39 @@ final class ConfigLoaderTest {
     assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("resources.payload must not be blank");
+  }
+
+  @Test
+  void shouldRejectBlankWorkerOutputJobType() {
+    // given
+    final var config =
+        new WorkloadConfig(
+            new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+            new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+            new WorkloadConfig.WorkloadSettings(
+                1, 0, Map.of(" ", Map.<String, Object>of("approved", true))),
+            new WorkloadConfig.OutputConfig("build/output"));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.workerOutputs job type must not be blank");
+  }
+
+  @Test
+  void shouldRejectBlankWorkerOutputVariableName() {
+    // given
+    final var config =
+        new WorkloadConfig(
+            new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+            new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+            new WorkloadConfig.WorkloadSettings(
+                1, 0, Map.of("charge-card", Map.<String, Object>of(" ", true))),
+            new WorkloadConfig.OutputConfig("build/output"));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.workerOutputs.charge-card variable name must not be blank");
   }
 }

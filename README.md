@@ -87,6 +87,9 @@ resources:
 workload:
   startInstances: 10
   completeInstances: 4
+  workerOutputs:
+    charge-card:
+      approved: true
 output:
   path: build/camunda-workload-generator
 ```
@@ -148,6 +151,8 @@ with `withResult()`, closes the workers, then starts the remaining configured
 instances so they stay active. If `resources.payload` or `--payload` points to a
 JSON object, that object is sent as start variables for both completed and active
 instances. Relative payload paths are resolved from the configured resources
-directory. Worker-specific variables, dynamic job types,
+directory. `workload.workerOutputs` maps job types to variables that generic
+workers write when completing matching jobs, and `report.json` records how many
+times each configured output was applied. Dynamic job types,
 messages, user tasks, incidents, and connector behavior are handled by later
 slices.

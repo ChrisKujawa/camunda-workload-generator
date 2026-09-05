@@ -2,6 +2,7 @@ package io.zell.cwg.generation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.config.WorkloadConfig.OutputConfig;
@@ -69,7 +70,13 @@ final class RuntimeWorkloadGeneratorTest {
             },
             (gatewayAddress, config, analysis, payloadVariables) -> {
               executedPayloads.add(payloadVariables);
-              return new WorkloadExecution(3, 2, 1, 0, java.util.Map.of("charge-card", 2L));
+              return new WorkloadExecution(
+                  3,
+                  2,
+                  1,
+                  0,
+                  java.util.Map.of("charge-card", 2L),
+                  java.util.Map.of("charge-card", 1L));
             },
             new io.zell.cwg.workload.PayloadVariablesLoader(),
             new io.zell.cwg.artifacts.ManifestWriter(),
@@ -82,7 +89,8 @@ final class RuntimeWorkloadGeneratorTest {
             new WorkloadConfig(
                 new RuntimeConfig("camunda/camunda:8.8.0"),
                 new ResourcesConfig(resources.toString(), "invoice", "payload.json"),
-                new WorkloadSettings(3, 2),
+                new WorkloadSettings(
+                    3, 2, Map.of("charge-card", Map.<String, Object>of("approved", true))),
                 new OutputConfig(output.toString())));
 
     // then
@@ -103,12 +111,16 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"rootProcessId\" : \"invoice\"")
         .contains("\"payload\" : \"payload.json\"")
         .contains("\"path\" : \"invoice.bpmn\"");
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
     assertThat(Files.readString(result.reportPath()))
         .contains("\"startedInstances\" : 3")
         .contains("\"completedInstances\" : 2")
         .contains("\"activeInstances\" : 1")
         .contains("\"detectedJobTypes\" : [ \"charge-card\" ]")
-        .contains("\"charge-card\" : 2");
+        .contains("\"completedJobs\"")
+        .contains("\"appliedWorkerOutputs\"");
+    assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
+    assertThat(report.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(1);
   }
 
   @Test
@@ -136,7 +148,7 @@ final class RuntimeWorkloadGeneratorTest {
                     new WorkloadConfig(
                         new RuntimeConfig("camunda/camunda:8.8.0"),
                         new ResourcesConfig(resources.toString(), "invoice", null),
-                        new WorkloadSettings(3, 0),
+                        new WorkloadSettings(3, 0, Map.of()),
                         new OutputConfig(tempDir.resolve("output").toString()))));
 
     // then
@@ -178,7 +190,7 @@ final class RuntimeWorkloadGeneratorTest {
                     new WorkloadConfig(
                         new RuntimeConfig("camunda/camunda:8.8.0"),
                         new ResourcesConfig(resources.toString(), "invoice", "missing.json"),
-                        new WorkloadSettings(1, 0),
+                        new WorkloadSettings(1, 0, Map.of()),
                         new OutputConfig(tempDir.resolve("output").toString()))));
 
     // then

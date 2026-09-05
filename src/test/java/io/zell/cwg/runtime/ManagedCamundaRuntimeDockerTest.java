@@ -11,6 +11,7 @@ import io.zell.cwg.config.WorkloadConfig.WorkloadSettings;
 import io.zell.cwg.generation.RuntimeWorkloadGenerator;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -57,7 +58,7 @@ final class ManagedCamundaRuntimeDockerTest {
                 new WorkloadConfig(
                     new RuntimeConfig("camunda/camunda:8.8.0"),
                     new ResourcesConfig(resources.toString(), "invoice", null),
-                    new WorkloadSettings(3, 2),
+                    new WorkloadSettings(3, 2, Map.of()),
                     new OutputConfig(output.toString())));
 
     // then
@@ -69,5 +70,56 @@ final class ManagedCamundaRuntimeDockerTest {
     assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(2);
     assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(1);
     assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
+  }
+
+  @Test
+  void shouldCompleteGatewayPathWithConfiguredWorkerOutputVariables() throws Exception {
+    // given
+    final var resources = tempDir.resolve("gateway-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("approval.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="approval" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="task" />
+            <bpmn:serviceTask id="task">
+              <bpmn:extensionElements>
+                <zeebe:taskDefinition type="approve-request" />
+              </bpmn:extensionElements>
+            </bpmn:serviceTask>
+            <bpmn:sequenceFlow id="flow2" sourceRef="task" targetRef="gateway" />
+            <bpmn:exclusiveGateway id="gateway" />
+            <bpmn:sequenceFlow id="approved" sourceRef="gateway" targetRef="approved_end">
+              <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=approved</bpmn:conditionExpression>
+            </bpmn:sequenceFlow>
+            <bpmn:endEvent id="approved_end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("gateway-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "approval", null),
+                    new WorkloadSettings(
+                        1, 1, Map.of("approve-request", Map.<String, Object>of("approved", true))),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("approve-request").asLong()).isEqualTo(1);
+    assertThat(report.get("appliedWorkerOutputs").get("approve-request").asLong()).isEqualTo(1);
   }
 }

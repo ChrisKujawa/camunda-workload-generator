@@ -34,6 +34,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     }
 
     final var completedJobs = new ConcurrentHashMap<String, LongAdder>();
+    final var appliedWorkerOutputs = new ConcurrentHashMap<String, LongAdder>();
     try (final var client =
         ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
       completeProcessInstances(
@@ -42,6 +43,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
           rootProcessId,
           completeInstances,
           payloadVariables,
+          config.getWorkload().workerOutputs(),
+          appliedWorkerOutputs,
           completedJobs);
       startActiveProcessInstances(
           client, rootProcessId, startInstances - completeInstances, payloadVariables);
@@ -52,7 +55,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
         completeInstances,
         startInstances - completeInstances,
         0,
-        completedJobs(completedJobs));
+        count(completedJobs),
+        count(appliedWorkerOutputs));
   }
 
   private static void completeProcessInstances(
@@ -61,12 +65,15 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       final String rootProcessId,
       final int completeInstances,
       final Map<String, Object> payloadVariables,
+      final Map<String, Map<String, Object>> workerOutputs,
+      final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs,
       final ConcurrentHashMap<String, LongAdder> completedJobs) {
     if (completeInstances == 0) {
       return;
     }
 
-    try (final var workers = new GenericWorkers(client, resourceAnalysis, completedJobs)) {
+    try (final var workers =
+        new GenericWorkers(client, resourceAnalysis, workerOutputs, appliedWorkerOutputs, completedJobs)) {
       workers.open();
       for (int i = 0; i < completeInstances; i++) {
         if (payloadVariables.isEmpty()) {
@@ -120,7 +127,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     }
   }
 
-  private static Map<String, Long> completedJobs(final Map<String, LongAdder> completedJobs) {
+  private static Map<String, Long> count(final Map<String, LongAdder> completedJobs) {
     final var counts = new LinkedHashMap<String, Long>();
     completedJobs.keySet().stream()
         .sorted()
@@ -132,15 +139,21 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
 
     private final ZeebeClient client;
     private final WorkloadResourceAnalysis resourceAnalysis;
+    private final Map<String, Map<String, Object>> workerOutputs;
+    private final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs;
     private final ConcurrentHashMap<String, LongAdder> completedJobs;
     private final Map<String, JobWorker> workers = new LinkedHashMap<>();
 
     private GenericWorkers(
         final ZeebeClient client,
         final WorkloadResourceAnalysis resourceAnalysis,
+        final Map<String, Map<String, Object>> workerOutputs,
+        final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs,
         final ConcurrentHashMap<String, LongAdder> completedJobs) {
       this.client = client;
       this.resourceAnalysis = resourceAnalysis;
+      this.workerOutputs = workerOutputs;
+      this.appliedWorkerOutputs = appliedWorkerOutputs;
       this.completedJobs = completedJobs;
     }
 
@@ -157,11 +170,25 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
                           .jobType(jobType)
                           .handler(
                               (jobClient, job) -> {
-                                jobClient
-                                    .newCompleteCommand(job.getKey())
-                                    .requestTimeout(COMMAND_TIMEOUT)
-                                    .send()
-                                    .join();
+                                final var outputVariables =
+                                    WorkerOutputVariables.forJobType(job.getType(), workerOutputs);
+                                if (outputVariables.isEmpty()) {
+                                  jobClient
+                                      .newCompleteCommand(job.getKey())
+                                      .requestTimeout(COMMAND_TIMEOUT)
+                                      .send()
+                                      .join();
+                                } else {
+                                  jobClient
+                                      .newCompleteCommand(job.getKey())
+                                      .variables(outputVariables)
+                                      .requestTimeout(COMMAND_TIMEOUT)
+                                      .send()
+                                      .join();
+                                  appliedWorkerOutputs
+                                      .computeIfAbsent(job.getType(), ignored -> new LongAdder())
+                                      .increment();
+                                }
                                 completedJobs
                                     .computeIfAbsent(job.getType(), ignored -> new LongAdder())
                                     .increment();
