@@ -14,8 +14,14 @@ final class MessageCorrelationKeyResolver {
       return message.correlationKey();
     }
 
-    final var expression = message.correlationKeyExpression().strip();
-    final var variablePath = expression.startsWith("=") ? expression.substring(1) : expression;
+    final var variablePath =
+        io.zell.cwg.config.WorkloadConfig.correlationKeyExpressionPath(
+            message.correlationKeyExpression());
+    if (variablePath.isBlank() || hasBlankPathSegment(variablePath)) {
+      throw new ConfigException(
+          "Message correlation key expression for message '%s' must reference a payload variable"
+              .formatted(message.name()));
+    }
     final var resolved = resolvePath(processStartVariables, variablePath);
     if (resolved == null) {
       throw new ConfigException(
@@ -34,5 +40,14 @@ final class MessageCorrelationKeyResolver {
       current = currentMap.get(segment);
     }
     return current;
+  }
+
+  private static boolean hasBlankPathSegment(final String path) {
+    for (final var segment : path.split("\\.")) {
+      if (segment.isBlank()) {
+        return true;
+      }
+    }
+    return false;
   }
 }

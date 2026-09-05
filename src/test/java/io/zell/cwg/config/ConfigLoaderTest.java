@@ -200,6 +200,35 @@ final class ConfigLoaderTest {
         .hasMessageContaining("workload.messages[0].timing must be afterProcessStart");
   }
 
+  @Test
+  void shouldRejectMessageCorrelationExpressionWithoutPayloadPath() {
+    // given
+    final var config =
+        configWithMessage(
+            new WorkloadConfig.MessageConfig("payment-received", null, "=", Map.of(), null));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.messages[0].correlationKeyExpression must reference a payload variable");
+  }
+
+  @Test
+  void shouldRejectMessageCorrelationExpressionWithBlankPathSegment() {
+    // given
+    final var config =
+        configWithMessage(
+            new WorkloadConfig.MessageConfig(
+                "payment-received", null, "=customer..id", Map.of(), null));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.messages[0].correlationKeyExpression must not contain blank path segments");
+  }
+
   private static WorkloadConfig configWithMessage(final WorkloadConfig.MessageConfig message) {
     return new WorkloadConfig(
         new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),

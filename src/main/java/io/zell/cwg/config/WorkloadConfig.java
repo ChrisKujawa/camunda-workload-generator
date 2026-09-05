@@ -266,6 +266,9 @@ public final class WorkloadConfig {
         errors.add(
             prefix
                 + " must set exactly one of correlationKey or correlationKeyExpression");
+      } else if (hasExpressionKey) {
+        validateCorrelationKeyExpression(
+            prefix, message.correlationKeyExpression(), errors);
       }
       if (message.timing() == null || message.timing().isBlank()) {
         errors.add(prefix + ".timing must not be blank");
@@ -279,5 +282,28 @@ public final class WorkloadConfig {
               variableName ->
                   requireNonBlank(prefix + ".variables variable name", variableName, errors));
     }
+  }
+
+  private static void validateCorrelationKeyExpression(
+      final String prefix, final String expression, final List<String> errors) {
+    final var path = correlationKeyExpressionPath(expression);
+    if (path.isBlank()) {
+      errors.add(prefix + ".correlationKeyExpression must reference a payload variable");
+      return;
+    }
+    for (final var segment : path.split("\\.")) {
+      if (segment.isBlank()) {
+        errors.add(prefix + ".correlationKeyExpression must not contain blank path segments");
+        return;
+      }
+    }
+  }
+
+  public static String correlationKeyExpressionPath(final String expression) {
+    final var stripped = expression == null ? "" : expression.strip();
+    if (stripped.startsWith("=")) {
+      return stripped.substring(1).strip();
+    }
+    return stripped;
   }
 }

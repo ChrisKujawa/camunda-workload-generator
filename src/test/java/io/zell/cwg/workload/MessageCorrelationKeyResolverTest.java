@@ -36,6 +36,20 @@ final class MessageCorrelationKeyResolverTest {
   }
 
   @Test
+  void shouldResolveCorrelationKeyExpressionWithWhitespaceAfterEquals() {
+    // given
+    final var message =
+        new WorkloadConfig.MessageConfig(
+            "payment-received", null, "= customer.orderId", Map.of(), null);
+
+    // when / then
+    assertThat(
+            MessageCorrelationKeyResolver.resolve(
+                message, Map.of("customer", Map.of("orderId", "order-1"))))
+        .isEqualTo("order-1");
+  }
+
+  @Test
   void shouldRejectUnresolvedCorrelationKeyExpression() {
     // given
     final var message =
@@ -45,5 +59,17 @@ final class MessageCorrelationKeyResolverTest {
     assertThatThrownBy(() -> MessageCorrelationKeyResolver.resolve(message, Map.of()))
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("did not resolve");
+  }
+
+  @Test
+  void shouldRejectProgrammaticMessageWithoutCorrelationKeyExpression() {
+    // given
+    final var message =
+        new WorkloadConfig.MessageConfig("payment-received", null, null, Map.of(), null);
+
+    // when / then
+    assertThatThrownBy(() -> MessageCorrelationKeyResolver.resolve(message, Map.of()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("must reference a payload variable");
   }
 }
