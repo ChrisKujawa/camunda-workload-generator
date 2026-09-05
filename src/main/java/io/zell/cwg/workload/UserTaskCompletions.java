@@ -25,11 +25,16 @@ final class UserTaskCompletions {
     }
     if (config.elementId() != null && !config.elementId().isBlank()) {
       final var elementId = config.elementId().strip();
-      final var exists =
+      final var matches =
           resourceAnalysis.userTasks().stream()
-              .anyMatch(userTask -> elementId.equals(userTask.elementId()));
-      if (!exists) {
+              .filter(userTask -> elementId.equals(userTask.elementId()))
+              .toList();
+      if (matches.isEmpty()) {
         throw new ConfigException("No user task found with elementId '%s'".formatted(elementId));
+      }
+      if (matches.size() > 1) {
+        throw new ConfigException(
+            "User task elementId '%s' matches multiple tasks".formatted(elementId));
       }
       return new UserTaskCompletion(elementId, config.variables());
     }

@@ -51,7 +51,10 @@ final class UserTaskCompletionsTest {
         config(new WorkloadConfig.UserTaskConfig("missing", null, Map.of()));
 
     // when / then
-    assertThatThrownBy(() -> UserTaskCompletions.from(config, analysis(userTask("approve_invoice", "Approve"))))
+    assertThatThrownBy(
+            () ->
+                UserTaskCompletions.from(
+                    config, analysis(userTask("approve_invoice", "Approve"))))
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("No user task found with elementId 'missing'");
   }
@@ -63,7 +66,10 @@ final class UserTaskCompletionsTest {
         config(new WorkloadConfig.UserTaskConfig(null, null, Map.of()));
 
     // when / then
-    assertThatThrownBy(() -> UserTaskCompletions.from(config, analysis(userTask("approve_invoice", "Approve"))))
+    assertThatThrownBy(
+            () ->
+                UserTaskCompletions.from(
+                    config, analysis(userTask("approve_invoice", "Approve"))))
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("User task completion must set elementId or name");
   }
@@ -81,7 +87,24 @@ final class UserTaskCompletionsTest {
                     config,
                     analysis(userTask("approve_a", "Approve"), userTask("approve_b", "Approve"))))
         .isInstanceOf(ConfigException.class)
-        .hasMessageContaining("User task name 'Approve' matches multiple element IDs: approve_a, approve_b");
+        .hasMessageContaining(
+            "User task name 'Approve' matches multiple element IDs: approve_a, approve_b");
+  }
+
+  @Test
+  void shouldRejectAmbiguousElementId() {
+    // given
+    final var config =
+        config(new WorkloadConfig.UserTaskConfig("approve", null, Map.of()));
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                UserTaskCompletions.from(
+                    config,
+                    analysis(userTask("approve", "Approve A"), userTask("approve", "Approve B"))))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("User task elementId 'approve' matches multiple tasks");
   }
 
   private static WorkloadConfig config(final WorkloadConfig.UserTaskConfig userTask) {
