@@ -210,3 +210,93 @@ from the start payload, and `report.json` records published message counts.
 ID or task name with optional variables, and `report.json` records completed
 user-task counts. Dynamic job types, incidents, and connector behavior are
 handled by later slices.
+
+## Generated artifact layout
+
+`output.path` is the root for generated artifacts:
+
+```text
+build/camunda-workload-generator/
+|-- manifest.json
+|-- report.json
+|-- zeebe-data/
+`-- zeebe-data.zip
+```
+
+`zeebe-data.zip` is present only when `output.zipZeebeData` is `true`.
+Secondary-storage results are reported in `report.json`; no index dump is
+written.
+
+## Example workflows
+
+### Small local fixture generation
+
+Use CLI overrides when the resource folder is simple and the generated artifact
+layout does not need to be shared:
+
+```bash
+mvn package
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate \
+  --resources src/test/resources/workload \
+  --root-process invoice \
+  --start-instances 5 \
+  --complete-instances 2 \
+  --output build/small-fixture
+```
+
+This deploys BPMN/DMN/form resources from the folder, starts five root process
+instances, waits for two completed instances, and writes Zeebe data plus
+metadata under `build/small-fixture`.
+
+### Config-driven realistic workload
+
+Use the committed realistic example when the scenario needs BPMN, child BPMN,
+DMN, form, payload, and user-task completion together:
+
+```bash
+mvn package
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-resources \
+  --config examples/realistic/workload.yaml
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-process \
+  examples/realistic/bankCustomerComplaintDisputeHandling.bpmn \
+  --process bankDisputeHandling
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate \
+  --config examples/realistic/workload.yaml
+```
+
+The example README documents its source attribution, copied resources, and BPMN
+simplifications.
+
+### Investigation run with ingestion reporting
+
+Enable secondary-storage reporting when an investigation needs both Zeebe data
+and evidence that exported data reached OpenSearch or Elasticsearch:
+
+```yaml
+runtime:
+  image: camunda/camunda:8.8.0
+resources:
+  directory: examples/realistic
+  rootProcessId: bankDisputeHandling
+  payload: payload.json
+workload:
+  startInstances: 10
+  completeInstances: 5
+  userTasks:
+    - name: Decide on fraud case
+      variables:
+        isRefund: true
+secondaryStorage:
+  mode: managed
+  type: opensearch
+  waitForIngestion: true
+  waitTimeout: PT3M
+output:
+  path: build/investigation-run
+  zipZeebeData: true
+```
+
+The resulting `report.json` includes workload counts, worker/message/user-task
+counts, Zeebe data file/byte counts, and secondary-storage index/document/store
+size counts. The artifacts are generic workload outputs; downstream readers
+choose how to inspect them.
