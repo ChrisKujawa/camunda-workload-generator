@@ -62,6 +62,19 @@ final class MessageCorrelationKeyResolverTest {
   }
 
   @Test
+  void shouldRejectCorrelationKeyExpressionWithTrailingBlankPathSegment() {
+    // given
+    final var message =
+        new WorkloadConfig.MessageConfig("payment-received", null, "=orderId.", Map.of(), null);
+
+    // when / then
+    assertThatThrownBy(
+            () -> MessageCorrelationKeyResolver.resolve(message, Map.of("orderId", "order-1")))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("must reference a payload variable");
+  }
+
+  @Test
   void shouldRejectProgrammaticMessageWithoutCorrelationKeyExpression() {
     // given
     final var message =

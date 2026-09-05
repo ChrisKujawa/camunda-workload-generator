@@ -33,7 +33,7 @@ final class MessageCorrelationKeyResolver {
 
   private static Object resolvePath(final Map<String, Object> variables, final String path) {
     Object current = variables;
-    for (final var segment : path.split("\\.")) {
+    for (final var segment : path.split("\\.", -1)) {
       if (segment.isBlank() || !(current instanceof Map<?, ?> currentMap)) {
         return null;
       }
@@ -43,7 +43,7 @@ final class MessageCorrelationKeyResolver {
   }
 
   private static boolean hasBlankPathSegment(final String path) {
-    for (final var segment : path.split("\\.")) {
+    for (final var segment : path.split("\\.", -1)) {
       if (segment.isBlank()) {
         return true;
       }

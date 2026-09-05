@@ -231,6 +231,21 @@ final class ConfigLoaderTest {
   }
 
   @Test
+  void shouldRejectMessageCorrelationExpressionWithTrailingBlankPathSegment() {
+    // given
+    final var config =
+        configWithMessage(
+            new WorkloadConfig.MessageConfig(
+                "payment-received", null, "=customer.id.", Map.of(), null));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.messages[0].correlationKeyExpression must not contain blank path segments");
+  }
+
+  @Test
   void shouldRejectMessageCorrelationExpressionWithoutPayload() {
     // given
     final var config =

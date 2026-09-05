@@ -300,7 +300,7 @@ public final class WorkloadConfig {
       errors.add(prefix + ".correlationKeyExpression must reference a payload variable");
       return;
     }
-    for (final var segment : path.split("\\.")) {
+    for (final var segment : path.split("\\.", -1)) {
       if (segment.isBlank()) {
         errors.add(prefix + ".correlationKeyExpression must not contain blank path segments");
         return;
