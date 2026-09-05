@@ -36,6 +36,45 @@ repository should avoid depending on ZDB internals.
 
 ## Status
 
-No implementation exists yet. The first milestone is a non-Docker foundation:
-CLI shape, config parsing, resource scanning, BPMN analysis, and manifest/report
-models.
+The first milestone is a non-Docker foundation. The CLI and config foundation
+exists; resource scanning, BPMN analysis, and manifest/report models are planned
+follow-up slices.
+
+## Development
+
+This project uses Java 21 and Maven.
+
+```bash
+mvn test
+mvn package
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar --help
+```
+
+The initial CLI foundation supports configuration validation and effective
+configuration printing without starting Docker:
+
+```bash
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar validate --config workload.yaml
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar print-config --config workload.yaml
+```
+
+Configuration precedence is:
+
+```text
+defaults < config file < CLI flags
+```
+
+Example config:
+
+```yaml
+runtime:
+  image: camunda/camunda:8.8.0
+resources:
+  directory: resources
+  rootProcessId: invoice
+workload:
+  startInstances: 10
+  completeInstances: 4
+output:
+  path: build/camunda-workload-generator
+```
