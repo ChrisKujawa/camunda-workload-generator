@@ -47,23 +47,22 @@ public final class SecondaryStorageReporter {
                 new ConfigException(
                     "Configured runtime does not expose a secondary-storage endpoint"));
 
-    final var stats =
+    final var result =
         config.waitForIngestion()
             ? waitForIngestion(config, secondaryStorageEndpoint)
-            : fetchStats(secondaryStorageEndpoint);
-    final var status = config.waitForIngestion() ? "ingested" : "queried";
+            : new IngestionResult("queried", fetchStats(secondaryStorageEndpoint));
     return new SecondaryStorageReport(
         config.waitForIngestion(),
         secondaryStorageEndpoint.type(),
-        status,
+        result.status(),
         secondaryStorageEndpoint.mode(),
         secondaryStorageEndpoint.url(),
-        stats.indexes(),
-        stats.documents(),
-        stats.storeSizeBytes());
+        result.stats().indexes(),
+        result.stats().documents(),
+        result.stats().storeSizeBytes());
   }
 
-  private StorageStats waitForIngestion(
+  private IngestionResult waitForIngestion(
       final SecondaryStorageConfig config, final SecondaryStorageEndpoint endpoint)
       throws IOException {
     final var deadline = Instant.now(clock).plus(config.waitTimeoutDuration());
@@ -71,13 +70,11 @@ public final class SecondaryStorageReporter {
     while (!Instant.now(clock).isAfter(deadline)) {
       lastStats = fetchStats(endpoint);
       if (lastStats.documents() > 0) {
-        return lastStats;
+        return new IngestionResult("ingested", lastStats);
       }
       sleep();
     }
-    throw new ConfigException(
-        "Timed out waiting for secondary-storage ingestion at %s; last document count was %d"
-            .formatted(endpoint.url(), lastStats.documents()));
+    return new IngestionResult("timed_out", lastStats);
   }
 
   private StorageStats fetchStats(final SecondaryStorageEndpoint endpoint) throws IOException {
@@ -138,6 +135,8 @@ public final class SecondaryStorageReporter {
   }
 
   private record StorageStats(long indexes, long documents, long storeSizeBytes) {}
+
+  private record IngestionResult(String status, StorageStats stats) {}
 
   @FunctionalInterface
   interface Sleeper {
