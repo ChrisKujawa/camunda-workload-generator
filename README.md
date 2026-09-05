@@ -65,6 +65,7 @@ resource analysis, managed runtime deployment, and basic workload execution:
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar validate --config workload.yaml
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar print-config --config workload.yaml
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-resources --config workload.yaml
+java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar analyze-process model.bpmn --process invoice
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate --config workload.yaml
 ```
 
@@ -109,6 +110,13 @@ classifies deployable resources separately from payload/config inputs:
 BPMN analysis reports process IDs, static Zeebe job types, call activities,
 message references, and DMN decision references where they can be read from the
 model without executing a runtime.
+
+`analyze-process` focuses on one BPMN model. It prints the selected process,
+the static happy-path flow node instance estimate, the happy-path nodes, static
+job types, distinct worker job types, call activities, message references, and
+DMN decision references. The happy-path estimate follows the first outgoing
+sequence flow, or a gateway's default flow when one is configured; it does not
+evaluate FEEL conditions or execute the model.
 
 ## Artifact metadata
 

@@ -2,12 +2,17 @@ package io.zell.cwg.bpmn;
 
 import io.zell.cwg.bpmn.BpmnAnalysis.CallActivity;
 import io.zell.cwg.bpmn.BpmnAnalysis.DmnReference;
+import io.zell.cwg.bpmn.BpmnAnalysis.HappyPathNode;
 import io.zell.cwg.bpmn.BpmnAnalysis.MessageReference;
+import io.zell.cwg.bpmn.BpmnAnalysis.ProcessPath;
 import io.zell.cwg.bpmn.BpmnAnalysis.StaticJobType;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -18,11 +23,33 @@ import org.xml.sax.SAXException;
 
 public final class BpmnAnalyzer {
 
+  private static final Set<String> FLOW_NODE_TYPES =
+      Set.of(
+          "startEvent",
+          "endEvent",
+          "serviceTask",
+          "sendTask",
+          "receiveTask",
+          "userTask",
+          "businessRuleTask",
+          "callActivity",
+          "exclusiveGateway",
+          "inclusiveGateway",
+          "parallelGateway",
+          "eventBasedGateway",
+          "subProcess",
+          "task",
+          "scriptTask",
+          "manualTask",
+          "intermediateCatchEvent",
+          "intermediateThrowEvent");
+
   public BpmnAnalysis analyze(final Path bpmnFile) throws IOException {
     final var document = parse(bpmnFile);
     return new BpmnAnalysis(
         bpmnFile,
         processIds(document),
+        processPaths(document),
         staticJobTypes(document),
         callActivities(document),
         messageReferences(document),
@@ -53,6 +80,70 @@ public final class BpmnAnalyzer {
     return processIds;
   }
 
+  private List<ProcessPath> processPaths(final Document document) {
+    final var processPaths = new ArrayList<ProcessPath>();
+    forEachElement(
+        document,
+        "process",
+        process -> {
+          if (!process.getAttribute("id").isBlank()) {
+            processPaths.add(processPath(process));
+          }
+        });
+    return processPaths;
+  }
+
+  private ProcessPath processPath(final Element process) {
+    final var processId = process.getAttribute("id");
+    final var flowNodesById = new LinkedHashMap<String, Element>();
+    final var sequenceFlowTargets = new LinkedHashMap<String, String>();
+    final var startEvents = new ArrayList<Element>();
+    final var jobTypesByElementId = staticJobTypesByElementId(process);
+
+    for (final var child : directChildElements(process)) {
+      final var id = child.getAttribute("id");
+      if (id.isBlank()) {
+        continue;
+      }
+
+      final var localName = localName(child);
+      if ("sequenceFlow".equals(localName)) {
+        sequenceFlowTargets.put(id, child.getAttribute("targetRef"));
+      } else if (FLOW_NODE_TYPES.contains(localName)) {
+        flowNodesById.put(id, child);
+        if ("startEvent".equals(localName)) {
+          startEvents.add(child);
+        }
+      }
+    }
+
+    if (startEvents.isEmpty()) {
+      return new ProcessPath(processId, List.of(), false);
+    }
+
+    final var happyPath = new ArrayList<HappyPathNode>();
+    final var visited = new java.util.HashSet<String>();
+    var current = startEvents.get(0);
+    var completePath = false;
+
+    while (current != null && visited.add(current.getAttribute("id"))) {
+      happyPath.add(happyPathNode(current, jobTypesByElementId));
+      if ("endEvent".equals(localName(current))) {
+        completePath = true;
+        break;
+      }
+
+      final var nextFlowId = nextFlowId(current);
+      if (nextFlowId == null) {
+        break;
+      }
+      final var targetId = sequenceFlowTargets.get(nextFlowId);
+      current = targetId == null ? null : flowNodesById.get(targetId);
+    }
+
+    return new ProcessPath(processId, happyPath, completePath);
+  }
+
   private List<StaticJobType> staticJobTypes(final Document document) {
     final var jobTypes = new ArrayList<StaticJobType>();
     forEachElement(
@@ -66,9 +157,28 @@ public final class BpmnAnalyzer {
                 new StaticJobType(
                     owner == null ? "" : owner.getAttribute("id"),
                     owner == null ? "" : owner.getAttribute("name"),
-                    type));
+                    type,
+                    owner == null ? "" : processId(owner)));
           }
         });
+    return jobTypes;
+  }
+
+  private Map<String, String> staticJobTypesByElementId(final Element process) {
+    final var jobTypes = new LinkedHashMap<String, String>();
+    final var elements = process.getElementsByTagName("*");
+    for (var i = 0; i < elements.getLength(); i++) {
+      final var element = (Element) elements.item(i);
+      if ("taskDefinition".equals(localName(element))) {
+        final var type = element.getAttribute("type");
+        if (isStaticValue(type)) {
+          final var owner = ownerElement(element);
+          if (owner != null) {
+            jobTypes.put(owner.getAttribute("id"), type);
+          }
+        }
+      }
+    }
     return jobTypes;
   }
 
@@ -86,7 +196,8 @@ public final class BpmnAnalyzer {
               new CallActivity(
                   callActivity.getAttribute("id"),
                   callActivity.getAttribute("name"),
-                  calledProcessId));
+                  calledProcessId == null ? "" : calledProcessId,
+                  processId(callActivity)));
         });
     return callActivities;
   }
@@ -101,7 +212,10 @@ public final class BpmnAnalyzer {
           if (!messageRef.isBlank()) {
             final var owner = ownerElement(messageEventDefinition);
             messageReferences.add(
-                new MessageReference(owner == null ? "" : owner.getAttribute("id"), messageRef));
+                new MessageReference(
+                    owner == null ? "" : owner.getAttribute("id"),
+                    messageRef,
+                    owner == null ? "" : processId(owner)));
           }
         });
     return messageReferences;
@@ -117,7 +231,10 @@ public final class BpmnAnalyzer {
           if (!decisionId.isBlank()) {
             final var owner = ownerElement(calledDecision);
             dmnReferences.add(
-                new DmnReference(owner == null ? "" : owner.getAttribute("id"), decisionId));
+                new DmnReference(
+                    owner == null ? "" : owner.getAttribute("id"),
+                    decisionId,
+                    owner == null ? "" : processId(owner)));
           }
         });
     return dmnReferences;
@@ -160,6 +277,61 @@ public final class BpmnAnalyzer {
       }
     }
     return null;
+  }
+
+  private static String processId(final Element element) {
+    var current = element;
+    while (current != null) {
+      if ("process".equals(localName(current))) {
+        return current.getAttribute("id");
+      }
+      final var parent = current.getParentNode();
+      current =
+          parent != null && parent.getNodeType() == Node.ELEMENT_NODE ? (Element) parent : null;
+    }
+    return "";
+  }
+
+  private static List<Element> directChildElements(final Element element) {
+    final var children = new ArrayList<Element>();
+    var child = element.getFirstChild();
+    while (child != null) {
+      if (child.getNodeType() == Node.ELEMENT_NODE) {
+        children.add((Element) child);
+      }
+      child = child.getNextSibling();
+    }
+    return children;
+  }
+
+  private static HappyPathNode happyPathNode(
+      final Element element, final Map<String, String> jobTypesByElementId) {
+    final var elementId = element.getAttribute("id");
+    return new HappyPathNode(
+        elementId,
+        element.getAttribute("name"),
+        localName(element),
+        jobTypesByElementId.get(elementId));
+  }
+
+  private static String nextFlowId(final Element element) {
+    final var outgoing = new ArrayList<String>();
+    for (final var child : directChildElements(element)) {
+      if ("outgoing".equals(localName(child))) {
+        final var flowId = child.getTextContent().strip();
+        if (!flowId.isBlank()) {
+          outgoing.add(flowId);
+        }
+      }
+    }
+    if (outgoing.isEmpty()) {
+      return null;
+    }
+    final var defaultFlow = element.getAttribute("default");
+    if (!defaultFlow.isBlank() && outgoing.contains(defaultFlow)) {
+      return defaultFlow;
+    }
+    return outgoing.get(0);
   }
 
   private static void addIfPresent(final List<String> values, final String candidate) {
