@@ -125,6 +125,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
             .messageName(message.name())
             .correlationKey(correlationKey)
             .timeToLive(MESSAGE_TIME_TO_LIVE)
+            .requestTimeout(COMMAND_TIMEOUT)
             .send()
             .join();
       } else {
@@ -134,6 +135,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
             .correlationKey(correlationKey)
             .variables(message.variables())
             .timeToLive(MESSAGE_TIME_TO_LIVE)
+            .requestTimeout(COMMAND_TIMEOUT)
             .send()
             .join();
       }
