@@ -37,9 +37,9 @@ repository should avoid depending on ZDB internals.
 ## Status
 
 The CLI, config foundation, resource scanning, static BPMN analysis,
-manifest/report artifact models, and managed runtime resource deployment exist.
-Workload execution, Zeebe data export, and secondary-storage ingestion are
-planned follow-up slices.
+manifest/report artifact models, managed runtime resource deployment, and
+basic workload execution exist. Zeebe data export and secondary-storage
+ingestion are planned follow-up slices.
 
 ## Development
 
@@ -59,7 +59,7 @@ when Testcontainers cannot find a usable Docker environment. The
 group manually.
 
 The CLI supports configuration validation, effective configuration printing,
-resource analysis, and managed runtime deployment:
+resource analysis, managed runtime deployment, and basic workload execution:
 
 ```bash
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar validate --config workload.yaml
@@ -123,7 +123,8 @@ directory:
 
 These metadata files can be written and tested without Docker. Runtime-backed
 commands fill resource metadata after deploying the configured deployable files.
-Workload execution will fill non-zero run counts in later slices.
+Workload execution fills started/completed/active instance counts and completed
+job counts.
 
 ## Managed runtime
 
@@ -132,5 +133,9 @@ secondary storage, runs the broker profile, deploys scanned BPMN/DMN/form files,
 shuts the runtime down cleanly, and writes `manifest.json` plus `report.json` to
 the configured output directory.
 
-The current runtime slice does not start process instances or complete jobs yet.
-Those are handled by the workload execution slice.
+After deployment, `generate` opens generic workers for statically detected
+Zeebe job types, completes `workload.completeInstances` root process instances
+with `withResult()`, closes the workers, then starts the remaining configured
+instances so they stay active. Worker-specific variables, dynamic job types,
+messages, user tasks, incidents, and connector behavior are handled by later
+slices.

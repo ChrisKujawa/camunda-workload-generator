@@ -2,6 +2,7 @@ package io.zell.cwg.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.config.WorkloadConfig.OutputConfig;
 import io.zell.cwg.config.WorkloadConfig.ResourcesConfig;
@@ -56,12 +57,17 @@ final class ManagedCamundaRuntimeDockerTest {
                 new WorkloadConfig(
                     new RuntimeConfig("camunda/camunda:8.8.0"),
                     new ResourcesConfig(resources.toString(), "invoice"),
-                    new WorkloadSettings(0, 0),
+                    new WorkloadSettings(3, 2),
                     new OutputConfig(output.toString())));
 
     // then
     assertThat(result.deployedResources()).isEqualTo(1);
     assertThat(result.manifestPath()).exists();
     assertThat(result.reportPath()).exists();
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("startedInstances").asLong()).isEqualTo(3);
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(2);
+    assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
   }
 }
