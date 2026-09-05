@@ -35,6 +35,9 @@ public final class PayloadVariablesLoader {
     } catch (final JsonProcessingException e) {
       throw new ConfigException(
           "Invalid payload JSON in %s: %s".formatted(payloadPath, e.getOriginalMessage()));
+    } catch (final IOException e) {
+      throw new ConfigException(
+          "Failed to read payload file %s: %s".formatted(payloadPath, e.getMessage()));
     }
 
     if (!payloadJson.isObject()) {

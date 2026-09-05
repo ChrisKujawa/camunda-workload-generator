@@ -7,8 +7,10 @@ import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -73,6 +75,29 @@ final class PayloadVariablesLoaderTest {
     assertThatThrownBy(() -> new PayloadVariablesLoader().load(config(tempDir, "payload.json")))
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("Invalid payload JSON");
+  }
+
+  @Test
+  void shouldRejectUnreadablePayloadFile() throws Exception {
+    // given
+    final var payload = tempDir.resolve("payload.json");
+    Files.writeString(payload, "{}");
+    Files.setPosixFilePermissions(payload, Set.of());
+
+    try {
+      // when / then
+      assertThatThrownBy(() -> new PayloadVariablesLoader().load(config(tempDir, "payload.json")))
+          .isInstanceOf(ConfigException.class)
+          .hasMessageContaining("Failed to read payload file");
+    } finally {
+      Files.setPosixFilePermissions(
+          payload,
+          Set.of(
+              PosixFilePermission.OWNER_READ,
+              PosixFilePermission.OWNER_WRITE,
+              PosixFilePermission.GROUP_READ,
+              PosixFilePermission.OTHERS_READ));
+    }
   }
 
   @Test
