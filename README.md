@@ -58,9 +58,10 @@ java -jar target/camunda-workload-generator-*.jar --help
 `mvn package` creates `target/camunda-workload-generator-*.jar` as an
 executable, dependency-including JAR.
 
-`mvn verify` applies Google Java Format, enforces Checkstyle, and runs SpotBugs
-in advisory mode. SpotBugs findings should be fixed incrementally before making
-that check fail the build.
+Maven's `validate` phase applies license headers and Google Java Format. The
+`verify` phase also enforces Checkstyle and runs SpotBugs in advisory mode.
+SpotBugs findings should be fixed incrementally before making that check fail
+the build.
 
 The default Maven test path skips Docker-tagged tests. Run the `docker` group
 explicitly when validating managed runtime behavior. Docker tests are skipped

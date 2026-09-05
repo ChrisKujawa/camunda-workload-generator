@@ -44,7 +44,7 @@ final class CamundaWorkloadGeneratorTest {
     // then
     assertThat(exitCode).isZero();
     assertThat(err.toString()).isEmpty();
-    assertThat(out.toString()).startsWith("camunda-workload-generator ");
+    assertThat(out.toString()).matches("camunda-workload-generator \\S+\\R");
   }
 
   @Test
