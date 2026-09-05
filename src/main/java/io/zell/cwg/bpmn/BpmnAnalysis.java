@@ -6,6 +6,7 @@ import java.util.List;
 public record BpmnAnalysis(
     Path source,
     List<String> processIds,
+    List<ProcessPath> processPaths,
     List<StaticJobType> staticJobTypes,
     List<CallActivity> callActivities,
     List<MessageReference> messageReferences,
@@ -13,11 +14,26 @@ public record BpmnAnalysis(
 
   public BpmnAnalysis {
     processIds = List.copyOf(processIds);
+    processPaths = List.copyOf(processPaths);
     staticJobTypes = List.copyOf(staticJobTypes);
     callActivities = List.copyOf(callActivities);
     messageReferences = List.copyOf(messageReferences);
     dmnReferences = List.copyOf(dmnReferences);
   }
+
+  public record ProcessPath(String processId, List<HappyPathNode> happyPath, boolean completePath) {
+
+    public ProcessPath {
+      happyPath = List.copyOf(happyPath);
+    }
+
+    public int flowNodeInstances() {
+      return happyPath.size();
+    }
+  }
+
+  public record HappyPathNode(
+      String elementId, String elementName, String elementType, String jobType) {}
 
   public record StaticJobType(String elementId, String elementName, String type) {}
 

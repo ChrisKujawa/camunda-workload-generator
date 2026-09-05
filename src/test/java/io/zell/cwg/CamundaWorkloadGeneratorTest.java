@@ -144,4 +144,52 @@ final class CamundaWorkloadGeneratorTest {
         .contains("invoice")
         .contains("charge-card (charge_card)");
   }
+
+  @Test
+  void shouldAnalyzeProcessFromCli() throws Exception {
+    // given
+    final var bpmnFile = tempDir.resolve("invoice.bpmn");
+    Files.writeString(
+        bpmnFile,
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
+          <process id="invoice">
+            <startEvent id="start">
+              <outgoing>flow_1</outgoing>
+            </startEvent>
+            <serviceTask id="charge_card" name="Charge card">
+              <extensionElements>
+                <zeebe:taskDefinition type="charge-card" />
+              </extensionElements>
+              <incoming>flow_1</incoming>
+              <outgoing>flow_2</outgoing>
+            </serviceTask>
+            <endEvent id="end">
+              <incoming>flow_2</incoming>
+            </endEvent>
+            <sequenceFlow id="flow_1" sourceRef="start" targetRef="charge_card" />
+            <sequenceFlow id="flow_2" sourceRef="charge_card" targetRef="end" />
+          </process>
+        </definitions>
+        """);
+    final var out = new StringWriter();
+    final var err = new StringWriter();
+    final var command = new CommandLine(new CamundaWorkloadGenerator.RootCommand());
+    command.setOut(new PrintWriter(out));
+    command.setErr(new PrintWriter(err));
+
+    // when
+    final var exitCode =
+        command.execute("analyze-process", bpmnFile.toString(), "--process", "invoice");
+
+    // then
+    assertThat(exitCode).isZero();
+    assertThat(err.toString()).isEmpty();
+    assertThat(out.toString())
+        .contains("Selected process: invoice")
+        .contains("Happy-path flow node instances: 3")
+        .contains("- serviceTask charge_card \"Charge card\" worker=charge-card")
+        .contains("Workers:%n- charge-card".formatted());
+  }
 }
