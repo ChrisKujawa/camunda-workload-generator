@@ -1,5 +1,6 @@
 package io.zell.cwg;
 
+import io.zell.cwg.cli.AnalyzeResourcesCommand;
 import io.zell.cwg.cli.GenerateCommand;
 import io.zell.cwg.cli.IngestCommand;
 import io.zell.cwg.cli.PrintConfigCommand;
@@ -26,6 +27,7 @@ public final class CamundaWorkloadGenerator {
       subcommands = {
         GenerateCommand.class,
         IngestCommand.class,
+        AnalyzeResourcesCommand.class,
         ValidateCommand.class,
         PrintConfigCommand.class
       })

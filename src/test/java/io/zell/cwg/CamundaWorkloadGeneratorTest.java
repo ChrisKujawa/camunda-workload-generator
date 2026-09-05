@@ -105,4 +105,43 @@ final class CamundaWorkloadGeneratorTest {
     assertThat(exitCode).isEqualTo(CommandLine.ExitCode.USAGE);
     assertThat(err.toString()).contains("workload.startInstances must be greater than or equal to 0");
   }
+
+  @Test
+  void shouldAnalyzeResourcesFromCli() throws Exception {
+    // given
+    Files.writeString(
+        tempDir.resolve("invoice.bpmn"),
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
+          <process id="invoice">
+            <serviceTask id="charge_card">
+              <extensionElements>
+                <zeebe:taskDefinition type="charge-card" />
+              </extensionElements>
+            </serviceTask>
+          </process>
+        </definitions>
+        """);
+    Files.writeString(tempDir.resolve("invoice.dmn"), "test");
+    Files.writeString(tempDir.resolve("payload.json"), "{}");
+    final var out = new StringWriter();
+    final var err = new StringWriter();
+    final var command = new CommandLine(new CamundaWorkloadGenerator.RootCommand());
+    command.setOut(new PrintWriter(out));
+    command.setErr(new PrintWriter(err));
+
+    // when
+    final var exitCode = command.execute("analyze-resources", "--resources", tempDir.toString());
+
+    // then
+    assertThat(exitCode).isZero();
+    assertThat(err.toString()).isEmpty();
+    assertThat(out.toString())
+        .contains("BPMN invoice.bpmn")
+        .contains("DMN invoice.dmn")
+        .contains("JSON payload.json")
+        .contains("invoice")
+        .contains("charge-card (charge_card)");
+  }
 }
