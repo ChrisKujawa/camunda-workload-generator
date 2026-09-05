@@ -93,6 +93,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
 
   @Override
   public GenerationResult generate(final WorkloadConfig config) throws IOException {
+    config.validate();
     final var resourcesDirectory = Path.of(config.getResources().directory());
     final var resourceAnalysis = resourceAnalyzer.analyze(resourcesDirectory);
     if (resourceAnalysis.scan().deployableResources().isEmpty()) {

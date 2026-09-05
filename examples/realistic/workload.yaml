@@ -2,10 +2,10 @@ runtime:
   image: camunda/camunda:8.8.0
 resources:
   directory: examples/realistic
-  rootProcessId: bankDisputeHandling
+  rootProcessId: refundingProcess
   payload: payload.json
 workload:
   startInstances: 5
-  completeInstances: 0
+  completeInstances: 1
 output:
   path: build/examples/realistic

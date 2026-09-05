@@ -254,6 +254,53 @@ final class RuntimeWorkloadGeneratorTest {
   }
 
   @Test
+  void shouldValidateConfigBeforeStartingRuntime() {
+    // given
+    final var runtime = new FakeRuntime();
+    final var generator =
+        new RuntimeWorkloadGenerator(
+            new io.kujava.cwg.resources.WorkloadResourceAnalyzer(),
+            ignored -> runtime,
+            (gatewayAddress, restAddress, deployableResources) -> {
+              throw new AssertionError("deployment must not run");
+            },
+            (gatewayAddress, restAddress, config, analysis, payloadVariables) -> {
+              throw new AssertionError("workload must not run");
+            },
+            new io.kujava.cwg.workload.PayloadVariablesLoader(),
+            new SecondaryStorageReporter(),
+            new io.kujava.cwg.artifacts.ManifestWriter(),
+            new io.kujava.cwg.artifacts.ReportWriter(),
+            Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
+
+    // when
+    final Throwable thrown =
+        org.assertj.core.api.Assertions.catchThrowable(
+            () ->
+                generator.generate(
+                    new WorkloadConfig(
+                        new RuntimeConfig("camunda/camunda:8.8.0"),
+                        new ResourcesConfig("resources", "invoice", null),
+                        new WorkloadSettings(
+                            1,
+                            1,
+                            Map.of(),
+                            List.of(),
+                            List.of(
+                                new WorkloadConfig.UserTaskConfig(
+                                    null, "Approve invoice", Map.of("approved", true)))),
+                        new OutputConfig(tempDir.resolve("output").toString()))));
+
+    // then
+    assertThat(thrown)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.userTasks requires secondaryStorage.mode managed or attached when completing"
+                + " process instances");
+    assertThat(runtime.started).isFalse();
+  }
+
+  @Test
   void shouldRejectUnsupportedRuntimeBeforeStartingRuntime() throws Exception {
     // given
     final var resources = tempDir.resolve("unsupported-runtime-resources");

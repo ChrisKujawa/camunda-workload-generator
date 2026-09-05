@@ -273,7 +273,8 @@ metadata under `build/small-fixture`.
 ### Config-driven realistic workload
 
 Use the committed realistic example when the scenario needs BPMN, child BPMN,
-DMN, form, payload, and active Zeebe data without secondary storage:
+DMN, form, payload, one completed service-task-only process instance, and
+active Zeebe data without secondary storage:
 
 ```bash
 mvn package
@@ -286,9 +287,10 @@ java -jar target/camunda-workload-generator-*.jar generate \
   --config examples/realistic/workload.yaml
 ```
 
-The example starts active process instances and leaves secondary storage
-disabled so local fixture generation stays small. The example README documents
-its source attribution, copied resources, and BPMN simplifications.
+The example uses the `refundingProcess` subprocess as root so one instance can
+complete through service tasks without user-task search. It leaves secondary
+storage disabled so local fixture generation stays small. The example README
+documents its source attribution, copied resources, and BPMN simplifications.
 
 ### Investigation run with ingestion reporting
 

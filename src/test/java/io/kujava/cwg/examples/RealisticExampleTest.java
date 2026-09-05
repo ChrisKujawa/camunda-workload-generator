@@ -39,7 +39,8 @@ final class RealisticExampleTest {
     final var payload = new PayloadVariablesLoader().load(config);
 
     // then
-    assertThat(config.getResources().rootProcessId()).isEqualTo("bankDisputeHandling");
+    assertThat(config.getResources().rootProcessId()).isEqualTo("refundingProcess");
+    assertThat(config.getWorkload().completeInstances()).isEqualTo(1);
     assertThat(config.getResources().payload()).isEqualTo("payload.json");
     assertThat(analysis.processIds()).contains("bankDisputeHandling", "refundingProcess");
     assertThat(analysis.staticJobTypes())

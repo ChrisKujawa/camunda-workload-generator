@@ -58,9 +58,9 @@ final class RealisticExampleDockerTest {
 
     final var report = new ObjectMapper().readTree(result.reportPath().toFile());
     assertThat(report.get("workload").get("startedInstances").asLong()).isEqualTo(5);
-    assertThat(report.get("workload").get("completedInstances").asLong()).isZero();
-    assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(5);
-    assertThat(report.get("completedJobs").isEmpty()).isTrue();
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(4);
+    assertThat(report.get("completedJobs").get("refunding").asLong()).isEqualTo(1);
     assertThat(report.get("completedUserTasks").isEmpty()).isTrue();
     assertThat(report.get("zeebeData").get("files").asLong()).isPositive();
     assertThat(report.get("secondaryStorage").get("status").asText()).isEqualTo("skipped");

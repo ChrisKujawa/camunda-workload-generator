@@ -37,6 +37,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(2);
   private static final Duration MESSAGE_TIME_TO_LIVE = Duration.ofMinutes(5);
   private static final Duration USER_TASK_POLL_DELAY = Duration.ofSeconds(1);
+  private static final Duration USER_TASK_COMPLETION_TIMEOUT = Duration.ofMinutes(2);
 
   @Override
   public WorkloadExecution execute(
@@ -156,7 +157,13 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       return;
     }
 
+    final var deadline = java.time.Instant.now().plus(USER_TASK_COMPLETION_TIMEOUT);
     while (!result.isDone()) {
+      if (java.time.Instant.now().isAfter(deadline)) {
+        throw new ConfigException(
+            "Timed out waiting for user tasks to complete process instance within "
+                + USER_TASK_COMPLETION_TIMEOUT);
+      }
       final var completed =
           completeAvailableUserTasks(client, userTaskCompletions, completedUserTasks);
       if (completed == 0) {
