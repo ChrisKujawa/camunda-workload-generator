@@ -112,7 +112,7 @@ public final class WorkloadConfig {
     requireNonNegative("workload.startInstances", workload.startInstances(), errors);
     requireNonNegative("workload.completeInstances", workload.completeInstances(), errors);
     validateWorkerOutputs(workload.workerOutputs(), errors);
-    validateMessages(workload.messages(), errors);
+    validateMessages(workload.messages(), resources.payload(), errors);
     if (workload.completeInstances() > workload.startInstances()) {
       errors.add("workload.completeInstances must be less than or equal to workload.startInstances");
     }
@@ -201,12 +201,14 @@ public final class WorkloadConfig {
     return raw.stream()
         .map(
             message ->
-                new MessageConfig(
-                    message.name,
-                    message.correlationKey,
-                    message.correlationKeyExpression,
-                    message.variables,
-                    message.timing))
+                message == null
+                    ? null
+                    : new MessageConfig(
+                        message.name,
+                        message.correlationKey,
+                        message.correlationKeyExpression,
+                        message.variables,
+                        message.timing))
         .toList();
   }
 
@@ -247,14 +249,18 @@ public final class WorkloadConfig {
     if (messages == null || messages.isEmpty()) {
       return List.of();
     }
-    return List.copyOf(messages);
+    return Collections.unmodifiableList(new ArrayList<>(messages));
   }
 
   private static void validateMessages(
-      final List<MessageConfig> messages, final List<String> errors) {
+      final List<MessageConfig> messages, final String payload, final List<String> errors) {
     for (int i = 0; i < messages.size(); i++) {
       final var message = messages.get(i);
       final var prefix = "workload.messages[%d]".formatted(i);
+      if (message == null) {
+        errors.add(prefix + " must not be null");
+        continue;
+      }
       requireNonBlank(prefix + ".name", message.name(), errors);
 
       final var hasStaticKey =
@@ -267,6 +273,9 @@ public final class WorkloadConfig {
             prefix
                 + " must set exactly one of correlationKey or correlationKeyExpression");
       } else if (hasExpressionKey) {
+        if (payload == null || payload.isBlank()) {
+          errors.add(prefix + ".correlationKeyExpression requires resources.payload");
+        }
         validateCorrelationKeyExpression(
             prefix, message.correlationKeyExpression(), errors);
       }

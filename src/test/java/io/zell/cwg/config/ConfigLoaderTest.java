@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -229,10 +230,53 @@ final class ConfigLoaderTest {
             "workload.messages[0].correlationKeyExpression must not contain blank path segments");
   }
 
+  @Test
+  void shouldRejectMessageCorrelationExpressionWithoutPayload() {
+    // given
+    final var config =
+        new WorkloadConfig(
+            new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+            new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+            new WorkloadConfig.WorkloadSettings(
+                1,
+                0,
+                Map.of(),
+                List.of(
+                    new WorkloadConfig.MessageConfig(
+                        "payment-received", null, "=customer.id", Map.of(), null))),
+            new WorkloadConfig.OutputConfig("build/output"));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.messages[0].correlationKeyExpression requires resources.payload");
+  }
+
+  @Test
+  void shouldRejectNullMessageEntry() {
+    // given
+    final var config =
+        new WorkloadConfig(
+            new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+            new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+            new WorkloadConfig.WorkloadSettings(
+                1,
+                0,
+                Map.of(),
+                Collections.<WorkloadConfig.MessageConfig>singletonList(null)),
+            new WorkloadConfig.OutputConfig("build/output"));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.messages[0] must not be null");
+  }
+
   private static WorkloadConfig configWithMessage(final WorkloadConfig.MessageConfig message) {
     return new WorkloadConfig(
         new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
-        new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+        new WorkloadConfig.ResourcesConfig("resources", "invoice", "payload.json"),
         new WorkloadConfig.WorkloadSettings(1, 0, Map.of(), List.of(message)),
         new WorkloadConfig.OutputConfig("build/output"));
   }
