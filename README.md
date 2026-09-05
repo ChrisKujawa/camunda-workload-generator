@@ -48,12 +48,18 @@ This project uses Java 21 and Maven.
 ```bash
 mvn test
 mvn package
+mvn fmt:format
+mvn spotbugs:spotbugs
 mvn test -Dgroups=docker -Dsurefire.excludedGroups=
 java -jar target/camunda-workload-generator-*.jar --help
 ```
 
 `mvn package` creates `target/camunda-workload-generator-*.jar` as an
 executable, dependency-including JAR.
+
+`mvn verify` applies Google Java Format and runs SpotBugs in advisory mode.
+SpotBugs findings should be fixed incrementally before making the check fail
+the build.
 
 The default Maven test path skips Docker-tagged tests. Run the `docker` group
 explicitly when validating managed runtime behavior. Docker tests are skipped

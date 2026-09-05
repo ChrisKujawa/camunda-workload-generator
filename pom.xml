@@ -4,21 +4,33 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.zell</groupId>
+  <groupId>io.kujava</groupId>
   <artifactId>camunda-workload-generator</artifactId>
   <version>0.1.0</version>
   <name>camunda-workload-generator</name>
   <description>Experimental Camunda workload generator</description>
+  <inceptionYear>2026</inceptionYear>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
 
   <properties>
     <java.version>21</java.version>
+    <license-maven-plugin.version>4.5</license-maven-plugin.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <assertj.version>3.26.3</assertj.version>
+    <fmt-maven-plugin.version>2.25</fmt-maven-plugin.version>
     <jackson.version>2.17.2</jackson.version>
     <junit.version>5.10.3</junit.version>
     <picocli.version>4.7.6</picocli.version>
     <slf4j.version>2.0.13</slf4j.version>
+    <spotbugs-maven-plugin.version>4.8.6.6</spotbugs-maven-plugin.version>
     <surefire.excludedGroups>docker</surefire.excludedGroups>
     <testcontainers.version>1.21.3</testcontainers.version>
     <zeebe.version>8.8.0</zeebe.version>
@@ -80,12 +92,69 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>com.mycila</groupId>
+        <artifactId>license-maven-plugin</artifactId>
+        <version>${license-maven-plugin.version}</version>
+        <configuration>
+          <header>${project.basedir}/license-header.txt</header>
+          <includes>
+            <include>src/**/*.java</include>
+          </includes>
+          <mapping>
+            <java>SLASHSTAR_STYLE</java>
+          </mapping>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>format</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
         <configuration>
           <excludedGroups>${surefire.excludedGroups}</excludedGroups>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.spotify.fmt</groupId>
+        <artifactId>fmt-maven-plugin</artifactId>
+        <version>${fmt-maven-plugin.version}</version>
+        <configuration>
+          <style>google</style>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>format</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>${spotbugs-maven-plugin.version}</version>
+        <configuration>
+          <effort>Max</effort>
+          <failOnError>false</failOnError>
+          <threshold>Low</threshold>
+          <xmlOutput>true</xmlOutput>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -101,7 +170,7 @@
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>io.zell.cwg.CamundaWorkloadGenerator</mainClass>
+                  <mainClass>io.kujava.cwg.CamundaWorkloadGenerator</mainClass>
                   <manifestEntries>
                     <Implementation-Title>${project.artifactId}</Implementation-Title>
                     <Implementation-Version>${project.version}</Implementation-Version>

@@ -1,0 +1,52 @@
+/*
+ * Copyright 2026 camunda-workload-generator contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.kujava.cwg.cli;
+
+import io.kujava.cwg.config.ConfigException;
+import io.kujava.cwg.config.ConfigLoader;
+import java.io.IOException;
+import java.util.concurrent.Callable;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
+
+@Command(
+    name = "print-config",
+    mixinStandardHelpOptions = true,
+    description =
+        "Print the effective workload configuration after defaults, config, and CLI overrides.")
+public final class PrintConfigCommand implements Callable<Integer> {
+
+  @Mixin private ConfigCommandMixin config;
+  @CommandLine.Spec private CommandLine.Model.CommandSpec spec;
+
+  @Override
+  public Integer call() {
+    try {
+      final var effective = ConfigLoader.load(config.config(), config.overrides());
+      final var out = spec.commandLine().getOut();
+      out.print(ConfigLoader.toYaml(effective));
+      out.flush();
+      return CommandLine.ExitCode.OK;
+    } catch (final ConfigException e) {
+      spec.commandLine().getErr().println(e.getMessage());
+      return CommandLine.ExitCode.USAGE;
+    } catch (final IOException e) {
+      spec.commandLine().getErr().printf("Failed to read config: %s%n", e.getMessage());
+      return CommandLine.ExitCode.SOFTWARE;
+    }
+  }
+}
