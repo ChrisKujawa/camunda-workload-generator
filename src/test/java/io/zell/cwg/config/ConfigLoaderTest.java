@@ -70,4 +70,23 @@ final class ConfigLoaderTest {
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("unrecognized property 'unexpected'");
   }
+
+  @Test
+  void shouldRejectCompletingMoreInstancesThanStarted() throws Exception {
+    // given
+    final var configFile = tempDir.resolve("workload.yaml");
+    Files.writeString(
+        configFile,
+        """
+        workload:
+          startInstances: 2
+          completeInstances: 3
+        """);
+
+    // when / then
+    assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.completeInstances must be less than or equal to workload.startInstances");
+  }
 }

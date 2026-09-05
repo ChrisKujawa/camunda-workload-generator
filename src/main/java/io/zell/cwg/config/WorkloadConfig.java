@@ -85,6 +85,9 @@ public final class WorkloadConfig {
     }
     requireNonNegative("workload.startInstances", workload.startInstances(), errors);
     requireNonNegative("workload.completeInstances", workload.completeInstances(), errors);
+    if (workload.completeInstances() > workload.startInstances()) {
+      errors.add("workload.completeInstances must be less than or equal to workload.startInstances");
+    }
     requireNonBlank("output.path", output.path(), errors);
 
     if (!errors.isEmpty()) {

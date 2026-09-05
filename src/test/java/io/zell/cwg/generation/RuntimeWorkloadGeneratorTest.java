@@ -2,14 +2,15 @@ package io.zell.cwg.generation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.config.WorkloadConfig.OutputConfig;
 import io.zell.cwg.config.WorkloadConfig.ResourcesConfig;
 import io.zell.cwg.config.WorkloadConfig.RuntimeConfig;
 import io.zell.cwg.config.WorkloadConfig.WorkloadSettings;
-import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.deployment.DeploymentResult;
 import io.zell.cwg.runtime.CamundaRuntime;
+import io.zell.cwg.workload.WorkloadExecution;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -55,6 +56,8 @@ final class RuntimeWorkloadGeneratorTest {
               deployableResources.forEach(resource -> deployedPaths.add(resource.relativePath()));
               return new DeploymentResult(deployableResources);
             },
+            (gatewayAddress, config, analysis) ->
+                new WorkloadExecution(3, 2, 1, 0, java.util.Map.of("charge-card", 2L)),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
@@ -65,7 +68,7 @@ final class RuntimeWorkloadGeneratorTest {
             new WorkloadConfig(
                 new RuntimeConfig("camunda/camunda:8.8.0"),
                 new ResourcesConfig(resources.toString(), "invoice"),
-                new WorkloadSettings(3, 0),
+                new WorkloadSettings(3, 2),
                 new OutputConfig(output.toString())));
 
     // then
@@ -78,8 +81,11 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"rootProcessId\" : \"invoice\"")
         .contains("\"path\" : \"invoice.bpmn\"");
     assertThat(Files.readString(result.reportPath()))
-        .contains("\"startedInstances\" : 0")
-        .contains("\"detectedJobTypes\" : [ \"charge-card\" ]");
+        .contains("\"startedInstances\" : 3")
+        .contains("\"completedInstances\" : 2")
+        .contains("\"activeInstances\" : 1")
+        .contains("\"detectedJobTypes\" : [ \"charge-card\" ]")
+        .contains("\"charge-card\" : 2");
   }
 
   @Test
@@ -93,6 +99,7 @@ final class RuntimeWorkloadGeneratorTest {
             new io.zell.cwg.resources.WorkloadResourceAnalyzer(),
             ignored -> runtime,
             (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
+            (gatewayAddress, config, analysis) -> WorkloadExecution.skipped(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));

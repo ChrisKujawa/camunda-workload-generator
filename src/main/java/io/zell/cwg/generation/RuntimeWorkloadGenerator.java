@@ -14,17 +14,20 @@ import io.zell.cwg.resources.WorkloadResourceAnalysis;
 import io.zell.cwg.resources.WorkloadResourceAnalyzer;
 import io.zell.cwg.runtime.CamundaRuntimeFactory;
 import io.zell.cwg.runtime.ManagedCamundaRuntime;
+import io.zell.cwg.workload.WorkloadExecution;
+import io.zell.cwg.workload.WorkloadExecutor;
+import io.zell.cwg.workload.ZeebeWorkloadExecutor;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.LinkedHashMap;
 
 public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
 
   private final WorkloadResourceAnalyzer resourceAnalyzer;
   private final CamundaRuntimeFactory runtimeFactory;
   private final ResourceDeployment resourceDeployment;
+  private final WorkloadExecutor workloadExecutor;
   private final ManifestWriter manifestWriter;
   private final ReportWriter reportWriter;
   private final Clock clock;
@@ -34,6 +37,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         new WorkloadResourceAnalyzer(),
         ManagedCamundaRuntime::from,
         new ZeebeResourceDeployment(),
+        new ZeebeWorkloadExecutor(),
         new ManifestWriter(),
         new ReportWriter(),
         Clock.systemUTC());
@@ -43,12 +47,14 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       final WorkloadResourceAnalyzer resourceAnalyzer,
       final CamundaRuntimeFactory runtimeFactory,
       final ResourceDeployment resourceDeployment,
+      final WorkloadExecutor workloadExecutor,
       final ManifestWriter manifestWriter,
       final ReportWriter reportWriter,
       final Clock clock) {
     this.resourceAnalyzer = resourceAnalyzer;
     this.runtimeFactory = runtimeFactory;
     this.resourceDeployment = resourceDeployment;
+    this.workloadExecutor = workloadExecutor;
     this.manifestWriter = manifestWriter;
     this.reportWriter = reportWriter;
     this.clock = clock;
@@ -65,12 +71,15 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     final var outputDirectory = Path.of(config.getOutput().path());
 
     final int deployedResources;
+    final WorkloadExecution workloadExecution;
     try (final var runtime = runtimeFactory.create(config.getRuntime())) {
       runtime.start();
       final var deployment =
           resourceDeployment.deploy(
               runtime.gatewayAddress(), resourceAnalysis.scan().deployableResources());
       deployedResources = deployment.deployedResourceCount();
+      workloadExecution =
+          workloadExecutor.execute(runtime.gatewayAddress(), config, resourceAnalysis);
     }
 
     final var generatedAt = Instant.now(clock).toString();
@@ -78,19 +87,29 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         manifestWriter.write(
             outputDirectory, WorkloadManifest.from(config, resourceAnalysis, generatedAt));
     final var reportPath =
-        reportWriter.write(outputDirectory, reportFrom(resourceAnalysis, generatedAt));
+        reportWriter.write(
+            outputDirectory, reportFrom(resourceAnalysis, workloadExecution, generatedAt));
 
     return new GenerationResult(deployedResources, manifestPath, reportPath);
   }
 
   private static WorkloadReport reportFrom(
-      final WorkloadResourceAnalysis resourceAnalysis, final String generatedAt) {
+      final WorkloadResourceAnalysis resourceAnalysis,
+      final WorkloadExecution workloadExecution,
+      final String generatedAt) {
     return new WorkloadReport(
         "1",
         generatedAt,
-        new RunSummary(0, 0, 0, 0),
-        resourceAnalysis.staticJobTypes().stream().map(jobType -> jobType.type()).distinct().toList(),
-        new LinkedHashMap<>(),
+        new RunSummary(
+            workloadExecution.startedInstances(),
+            workloadExecution.completedInstances(),
+            workloadExecution.activeInstances(),
+            workloadExecution.createdIncidents()),
+        resourceAnalysis.staticJobTypes().stream()
+            .map(jobType -> jobType.type())
+            .distinct()
+            .toList(),
+        workloadExecution.completedJobs(),
         SecondaryStorageReport.skipped());
   }
 }
