@@ -24,6 +24,7 @@ public final class RawWorkloadConfig {
     public Integer completeInstances;
     public Map<String, Map<String, Object>> workerOutputs;
     public List<MessageConfig> messages;
+    public List<UserTaskConfig> userTasks;
   }
 
   public static final class MessageConfig {
@@ -32,6 +33,12 @@ public final class RawWorkloadConfig {
     public String correlationKeyExpression;
     public Map<String, Object> variables;
     public String timing;
+  }
+
+  public static final class UserTaskConfig {
+    public String elementId;
+    public String name;
+    public Map<String, Object> variables;
   }
 
   public static final class OutputConfig {

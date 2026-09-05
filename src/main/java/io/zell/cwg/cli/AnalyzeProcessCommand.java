@@ -5,6 +5,7 @@ import io.zell.cwg.bpmn.BpmnAnalysis.DmnReference;
 import io.zell.cwg.bpmn.BpmnAnalysis.MessageReference;
 import io.zell.cwg.bpmn.BpmnAnalysis.ProcessPath;
 import io.zell.cwg.bpmn.BpmnAnalysis.StaticJobType;
+import io.zell.cwg.bpmn.BpmnAnalysis.UserTask;
 import io.zell.cwg.bpmn.BpmnAnalyzer;
 import io.zell.cwg.config.ConfigException;
 import java.io.IOException;
@@ -65,6 +66,7 @@ public final class AnalyzeProcessCommand implements Callable<Integer> {
           .map(jobType -> jobType.type())
           .distinct()
           .forEach(worker -> out.printf("- %s%n", worker));
+      printUserTasks(userTasks(analysis.userTasks(), processPath));
       printCallActivities(callActivities(analysis.callActivities(), processPath));
       printMessageReferences(messageReferences(analysis.messageReferences(), processPath));
       printDmnReferences(dmnReferences(analysis.dmnReferences(), processPath));
@@ -113,6 +115,13 @@ public final class AnalyzeProcessCommand implements Callable<Integer> {
         .toList();
   }
 
+  private static List<UserTask> userTasks(
+      final List<UserTask> userTasks, final ProcessPath processPath) {
+    return userTasks.stream()
+        .filter(userTask -> processPath.processId().equals(userTask.processId()))
+        .toList();
+  }
+
   private static List<MessageReference> messageReferences(
       final List<MessageReference> messageReferences, final ProcessPath processPath) {
     return messageReferences.stream()
@@ -133,6 +142,17 @@ public final class AnalyzeProcessCommand implements Callable<Integer> {
     callActivities.forEach(
         callActivity ->
             out.printf("- %s -> %s%n", callActivity.elementId(), callActivity.calledProcessId()));
+  }
+
+  private void printUserTasks(final List<UserTask> userTasks) {
+    final var out = spec.commandLine().getOut();
+    out.println("User tasks:");
+    userTasks.forEach(
+        userTask ->
+            out.printf(
+                "- %s%s%n",
+                userTask.elementId(),
+                userTask.elementName().isBlank() ? "" : " \"" + userTask.elementName() + "\""));
   }
 
   private void printMessageReferences(final List<MessageReference> messageReferences) {

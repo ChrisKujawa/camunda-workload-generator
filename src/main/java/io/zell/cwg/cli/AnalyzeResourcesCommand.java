@@ -37,6 +37,12 @@ public final class AnalyzeResourcesCommand implements Callable<Integer> {
       analysis
           .staticJobTypes()
           .forEach(jobType -> out.printf("- %s (%s)%n", jobType.type(), jobType.elementId()));
+      out.println("User tasks:");
+      analysis
+          .userTasks()
+          .forEach(
+              userTask ->
+                  out.printf("- %s%s%n", userTask.elementId(), named(userTask.elementName())));
       out.println("Call activities:");
       analysis
           .callActivities()
@@ -72,5 +78,9 @@ public final class AnalyzeResourcesCommand implements Callable<Integer> {
       err.flush();
       return CommandLine.ExitCode.SOFTWARE;
     }
+  }
+
+  private static String named(final String name) {
+    return name == null || name.isBlank() ? "" : " \"" + name + "\"";
   }
 }

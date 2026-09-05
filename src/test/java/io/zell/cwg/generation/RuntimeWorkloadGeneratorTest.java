@@ -77,7 +77,8 @@ final class RuntimeWorkloadGeneratorTest {
                   0,
                   java.util.Map.of("charge-card", 2L),
                   java.util.Map.of("charge-card", 1L),
-                  java.util.Map.of("payment-received", 2L));
+                  java.util.Map.of("payment-received", 2L),
+                  java.util.Map.of("approve_invoice", 2L));
             },
             new io.zell.cwg.workload.PayloadVariablesLoader(),
             new io.zell.cwg.artifacts.ManifestWriter(),
@@ -125,10 +126,12 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"detectedJobTypes\" : [ \"charge-card\" ]")
         .contains("\"completedJobs\"")
         .contains("\"appliedWorkerOutputs\"")
-        .contains("\"publishedMessages\"");
+        .contains("\"publishedMessages\"")
+        .contains("\"completedUserTasks\"");
     assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
     assertThat(report.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(1);
     assertThat(report.get("publishedMessages").get("payment-received").asLong()).isEqualTo(2);
+    assertThat(report.get("completedUserTasks").get("approve_invoice").asLong()).isEqualTo(2);
   }
 
   @Test

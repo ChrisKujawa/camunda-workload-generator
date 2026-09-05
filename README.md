@@ -95,6 +95,10 @@ workload:
       correlationKeyExpression: =customer.orderId
       variables:
         paid: true
+  userTasks:
+    - name: Approve invoice
+      variables:
+        approved: true
 output:
   path: build/camunda-workload-generator
 ```
@@ -116,14 +120,14 @@ classifies deployable resources separately from payload/config inputs:
 - Deployable: `*.bpmn`, `*.dmn`, `*.form`
 - Payload/config inputs: `*.json`, `*.yaml`, `*.yml`
 
-BPMN analysis reports process IDs, static Zeebe job types, call activities,
-message references, and DMN decision references where they can be read from the
-model without executing a runtime.
+BPMN analysis reports process IDs, static Zeebe job types, user tasks, call
+activities, message references, and DMN decision references where they can be
+read from the model without executing a runtime.
 
 `analyze-process` focuses on one BPMN model. It prints the selected process,
 the static happy-path flow node instance estimate, the happy-path nodes, static
-job types, distinct worker job types, call activities, message references, and
-DMN decision references. The happy-path estimate follows the first outgoing
+job types, distinct worker job types, user tasks, call activities, message
+references, and DMN decision references. The happy-path estimate follows the first outgoing
 sequence flow, or a gateway's default flow when one is configured; it does not
 evaluate FEEL conditions or execute the model.
 
@@ -162,5 +166,7 @@ times each configured output was applied. `workload.messages` publishes explicit
 messages after each completed process instance is started. A message can use a
 static `correlationKey` or a simple `correlationKeyExpression` path resolved
 from the start payload, and `report.json` records published message counts.
-Dynamic job types, user tasks, incidents, and connector behavior are handled by
-later slices.
+`workload.userTasks` completes explicitly configured user tasks by BPMN element
+ID or task name with optional variables, and `report.json` records completed
+user-task counts. Dynamic job types, incidents, and connector behavior are
+handled by later slices.

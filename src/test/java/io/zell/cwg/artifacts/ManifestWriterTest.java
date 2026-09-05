@@ -26,6 +26,7 @@ final class ManifestWriterTest {
         <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
           <process id="invoice">
+            <userTask id="approve_invoice" name="Approve invoice" />
             <serviceTask id="charge_card">
               <extensionElements>
                 <zeebe:taskDefinition type="charge-card" />
@@ -63,6 +64,8 @@ final class ManifestWriterTest {
     assertThat(json.get("resources").get("processIds").get(0).asText()).isEqualTo("invoice");
     assertThat(json.get("resources").get("staticJobTypes").get(0).get("type").asText())
         .isEqualTo("charge-card");
+    assertThat(json.get("resources").get("userTasks").get(0).get("elementId").asText())
+        .isEqualTo("approve_invoice");
     assertThat(json.get("artifacts").get("manifest").asText()).isEqualTo("manifest.json");
   }
 }

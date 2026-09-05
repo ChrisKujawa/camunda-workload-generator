@@ -46,6 +46,7 @@ public record WorkloadManifest(
       List<ResourceEntry> payloadOrConfigResources,
       List<String> processIds,
       List<JobTypeEntry> staticJobTypes,
+      List<UserTaskEntry> userTasks,
       List<CallActivityEntry> callActivities,
       List<MessageReferenceEntry> messageReferences,
       List<DmnReferenceEntry> dmnReferences) {
@@ -55,6 +56,7 @@ public record WorkloadManifest(
       payloadOrConfigResources = List.copyOf(payloadOrConfigResources);
       processIds = List.copyOf(processIds);
       staticJobTypes = List.copyOf(staticJobTypes);
+      userTasks = List.copyOf(userTasks);
       callActivities = List.copyOf(callActivities);
       messageReferences = List.copyOf(messageReferences);
       dmnReferences = List.copyOf(dmnReferences);
@@ -69,6 +71,7 @@ public record WorkloadManifest(
           resourceAnalysis.scan().payloadOrConfigResources().stream().map(ResourceEntry::from).toList(),
           resourceAnalysis.processIds(),
           resourceAnalysis.staticJobTypes().stream().map(JobTypeEntry::from).toList(),
+          resourceAnalysis.userTasks().stream().map(UserTaskEntry::from).toList(),
           resourceAnalysis.callActivities().stream().map(CallActivityEntry::from).toList(),
           resourceAnalysis.messageReferences().stream().map(MessageReferenceEntry::from).toList(),
           resourceAnalysis.dmnReferences().stream().map(DmnReferenceEntry::from).toList());
@@ -85,6 +88,12 @@ public record WorkloadManifest(
   public record JobTypeEntry(String elementId, String elementName, String type) {
     static JobTypeEntry from(final BpmnAnalysis.StaticJobType jobType) {
       return new JobTypeEntry(jobType.elementId(), jobType.elementName(), jobType.type());
+    }
+  }
+
+  public record UserTaskEntry(String elementId, String elementName) {
+    static UserTaskEntry from(final BpmnAnalysis.UserTask userTask) {
+      return new UserTaskEntry(userTask.elementId(), userTask.elementName());
     }
   }
 

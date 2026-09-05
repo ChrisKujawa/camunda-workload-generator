@@ -38,6 +38,10 @@ final class ConfigLoaderTest {
               correlationKeyExpression: =customer.id
               variables:
                 paid: true
+          userTasks:
+            - name: Approve invoice
+              variables:
+                approved: true
         output:
           path: build/config-output
         """);
@@ -72,6 +76,10 @@ final class ConfigLoaderTest {
                 "=customer.id",
                 Map.of("paid", true),
                 WorkloadConfig.MessageConfig.AFTER_PROCESS_START));
+    assertThat(config.getWorkload().userTasks())
+        .containsExactly(
+            new WorkloadConfig.UserTaskConfig(
+                null, "Approve invoice", Map.of("approved", true)));
     assertThat(config.getOutput().path()).isEqualTo("build/cli-output");
   }
 
@@ -88,6 +96,7 @@ final class ConfigLoaderTest {
     assertThat(config.getWorkload().completeInstances()).isZero();
     assertThat(config.getWorkload().workerOutputs()).isEmpty();
     assertThat(config.getWorkload().messages()).isEmpty();
+    assertThat(config.getWorkload().userTasks()).isEmpty();
     assertThat(config.getOutput().path()).isEqualTo("build/camunda-workload-generator");
   }
 
@@ -288,11 +297,68 @@ final class ConfigLoaderTest {
         .hasMessageContaining("workload.messages[0] must not be null");
   }
 
+  @Test
+  void shouldRejectUserTaskWithoutExactlyOneSelector() {
+    // given
+    final var config =
+        configWithUserTask(
+            new WorkloadConfig.UserTaskConfig("approve_invoice", "Approve invoice", Map.of()));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.userTasks[0] must set exactly one of elementId or name");
+  }
+
+  @Test
+  void shouldRejectBlankUserTaskVariableName() {
+    // given
+    final var config =
+        configWithUserTask(
+            new WorkloadConfig.UserTaskConfig(
+                "approve_invoice", null, Map.<String, Object>of(" ", true)));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.userTasks[0].variables variable name must not be blank");
+  }
+
+  @Test
+  void shouldRejectNullUserTaskEntry() {
+    // given
+    final var config =
+        new WorkloadConfig(
+            new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+            new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+            new WorkloadConfig.WorkloadSettings(
+                1,
+                0,
+                Map.of(),
+                List.of(),
+                Collections.<WorkloadConfig.UserTaskConfig>singletonList(null)),
+            new WorkloadConfig.OutputConfig("build/output"));
+
+    // when / then
+    assertThatThrownBy(config::validate)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("workload.userTasks[0] must not be null");
+  }
+
   private static WorkloadConfig configWithMessage(final WorkloadConfig.MessageConfig message) {
     return new WorkloadConfig(
         new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
         new WorkloadConfig.ResourcesConfig("resources", "invoice", "payload.json"),
         new WorkloadConfig.WorkloadSettings(1, 0, Map.of(), List.of(message)),
+        new WorkloadConfig.OutputConfig("build/output"));
+  }
+
+  private static WorkloadConfig configWithUserTask(
+      final WorkloadConfig.UserTaskConfig userTask) {
+    return new WorkloadConfig(
+        new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
+        new WorkloadConfig.ResourcesConfig("resources", "invoice", null),
+        new WorkloadConfig.WorkloadSettings(1, 0, Map.of(), List.of(), List.of(userTask)),
         new WorkloadConfig.OutputConfig("build/output"));
   }
 }
