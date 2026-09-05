@@ -48,15 +48,35 @@ This project uses Java 21 and Maven.
 ```bash
 mvn test
 mvn package
+mvn license:format
+mvn fmt:format
+mvn checkstyle:check
+mvn spotbugs:spotbugs
 mvn test -Dgroups=docker -Dsurefire.excludedGroups=
 java -jar target/camunda-workload-generator-*.jar --help
 ```
+
+`mvn package` creates `target/camunda-workload-generator-*.jar` as an
+executable, dependency-including JAR.
+
+`mvn verify` checks license headers, Google Java Format, Checkstyle, and
+SpotBugs. SpotBugs runs in advisory mode. Apply license headers and formatting
+explicitly with `mvn license:format fmt:format`.
 
 The default Maven test path skips Docker-tagged tests. Run the `docker` group
 explicitly when validating managed runtime behavior. Docker tests are skipped
 when Testcontainers cannot find a usable Docker environment. The
 `Docker integration` GitHub Actions workflow runs the same Docker-tagged test
 group manually.
+
+On Docker Engine versions whose minimum API is newer than the Docker Java
+default, pass the API version explicitly:
+
+```bash
+java -Dapi.version="$(docker version --format '{{.Client.APIVersion}}')" \
+  -jar target/camunda-workload-generator-*.jar generate \
+  --config examples/realistic/workload.yaml
+```
 
 The CLI supports configuration validation, effective configuration printing,
 resource analysis, managed runtime deployment, and basic workload execution:
@@ -208,8 +228,10 @@ static `correlationKey` or a simple `correlationKeyExpression` path resolved
 from the start payload, and `report.json` records published message counts.
 `workload.userTasks` completes explicitly configured user tasks by BPMN element
 ID or task name with optional variables, and `report.json` records completed
-user-task counts. Dynamic job types, incidents, and connector behavior are
-handled by later slices.
+user-task counts. Camunda 8.8 user-task search requires secondary storage, so
+configs that complete user tasks must set `secondaryStorage.mode` to `managed`
+or `attached`. Dynamic job types, incidents, and connector behavior are handled
+by later slices.
 
 ## Generated artifact layout
 
@@ -252,7 +274,8 @@ metadata under `build/small-fixture`.
 ### Config-driven realistic workload
 
 Use the committed realistic example when the scenario needs BPMN, child BPMN,
-DMN, form, payload, and user-task completion together:
+DMN, form, payload, one completed happy-path process instance, and active
+Zeebe data without secondary storage:
 
 ```bash
 mvn package
@@ -265,8 +288,11 @@ java -jar target/camunda-workload-generator-*.jar generate \
   --config examples/realistic/workload.yaml
 ```
 
-The example README documents its source attribution, copied resources, and BPMN
-simplifications.
+The example payload drives `bankDisputeHandling` through the no-manual-review
+path, so one instance completes through service/send tasks without user-task
+search. It leaves secondary storage disabled so local fixture generation stays
+small. The example README documents its source attribution, copied resources,
+and BPMN simplifications.
 
 ### Investigation run with ingestion reporting
 

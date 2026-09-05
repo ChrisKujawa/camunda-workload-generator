@@ -1,5 +1,6 @@
 {
   "customerId": 123,
+  "needsManualReview": false,
   "customer_claim_frequency": 1,
   "vendor_claim_frequency": 5,
   "customer": {

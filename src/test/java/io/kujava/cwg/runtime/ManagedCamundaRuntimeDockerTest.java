@@ -1,0 +1,310 @@
+/*
+ * Copyright 2026 camunda-workload-generator contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.kujava.cwg.runtime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kujava.cwg.config.WorkloadConfig;
+import io.kujava.cwg.config.WorkloadConfig.OutputConfig;
+import io.kujava.cwg.config.WorkloadConfig.ResourcesConfig;
+import io.kujava.cwg.config.WorkloadConfig.RuntimeConfig;
+import io.kujava.cwg.config.WorkloadConfig.SecondaryStorageConfig;
+import io.kujava.cwg.config.WorkloadConfig.WorkloadSettings;
+import io.kujava.cwg.generation.RuntimeWorkloadGenerator;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+@Tag("docker")
+@Testcontainers(disabledWithoutDocker = true)
+final class ManagedCamundaRuntimeDockerTest {
+
+  @TempDir private Path tempDir;
+
+  @Test
+  void shouldStartManagedRuntimeAndDeployResources() throws Exception {
+    // given
+    final var resources = tempDir.resolve("resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("invoice.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="invoice" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="task" />
+            <bpmn:serviceTask id="task">
+              <bpmn:extensionElements>
+                <zeebe:taskDefinition type="charge-card" />
+              </bpmn:extensionElements>
+            </bpmn:serviceTask>
+            <bpmn:sequenceFlow id="flow2" sourceRef="task" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "invoice", null),
+                    new WorkloadSettings(3, 2, Map.of(), List.of()),
+                    new OutputConfig(output.toString(), true)));
+
+    // then
+    assertThat(result.deployedResources()).isEqualTo(1);
+    assertThat(result.manifestPath()).exists();
+    assertThat(result.reportPath()).exists();
+    assertThat(output.resolve("zeebe-data")).isDirectory();
+    try (final var zeebeDataFiles = Files.walk(output.resolve("zeebe-data"))) {
+      assertThat(zeebeDataFiles.filter(Files::isRegularFile).count()).isPositive();
+    }
+    assertThat(output.resolve("zeebe-data.zip")).exists().isRegularFile();
+    final var manifest = new ObjectMapper().readTree(result.manifestPath().toFile());
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(manifest.get("artifacts").get("zeebeData").asText()).isEqualTo("zeebe-data/");
+    assertThat(manifest.get("artifacts").get("zeebeDataZip").asText()).isEqualTo("zeebe-data.zip");
+    assertThat(report.get("workload").get("startedInstances").asLong()).isEqualTo(3);
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(2);
+    assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
+    assertThat(report.get("zeebeData").get("directory").asText()).isEqualTo("zeebe-data/");
+    assertThat(report.get("zeebeData").get("zip").asText()).isEqualTo("zeebe-data.zip");
+    assertThat(report.get("zeebeData").get("files").asLong()).isPositive();
+    assertThat(report.get("zeebeData").get("bytes").asLong()).isPositive();
+  }
+
+  @Test
+  void shouldWriteSecondaryStorageReportForManagedOpenSearch() throws Exception {
+    // given
+    final var resources = tempDir.resolve("secondary-storage-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("invoice.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="invoice" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("secondary-storage-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "invoice", null),
+                    new WorkloadSettings(1, 0, Map.of(), List.of()),
+                    new SecondaryStorageConfig(
+                        SecondaryStorageConfig.MODE_MANAGED,
+                        SecondaryStorageConfig.TYPE_OPENSEARCH,
+                        null,
+                        null,
+                        true,
+                        "PT3M"),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("secondaryStorage").get("ingestionWaited").asBoolean()).isTrue();
+    assertThat(report.get("secondaryStorage").get("type").asText()).isEqualTo("opensearch");
+    assertThat(report.get("secondaryStorage").get("mode").asText()).isEqualTo("managed");
+    assertThat(report.get("secondaryStorage").get("status").asText()).isEqualTo("ingested");
+    assertThat(report.get("secondaryStorage").get("indexes").asLong()).isPositive();
+    assertThat(report.get("secondaryStorage").get("documents").asLong()).isPositive();
+  }
+
+  @Test
+  void shouldCompleteGatewayPathWithConfiguredWorkerOutputVariables() throws Exception {
+    // given
+    final var resources = tempDir.resolve("gateway-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("approval.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="approval" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="task" />
+            <bpmn:serviceTask id="task">
+              <bpmn:extensionElements>
+                <zeebe:taskDefinition type="approve-request" />
+              </bpmn:extensionElements>
+            </bpmn:serviceTask>
+            <bpmn:sequenceFlow id="flow2" sourceRef="task" targetRef="gateway" />
+            <bpmn:exclusiveGateway id="gateway" />
+            <bpmn:sequenceFlow id="approved" sourceRef="gateway" targetRef="approved_end">
+              <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=approved</bpmn:conditionExpression>
+            </bpmn:sequenceFlow>
+            <bpmn:endEvent id="approved_end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("gateway-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "approval", null),
+                    new WorkloadSettings(
+                        1,
+                        1,
+                        Map.of("approve-request", Map.<String, Object>of("approved", true)),
+                        List.of()),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("completedJobs").get("approve-request").asLong()).isEqualTo(1);
+    assertThat(report.get("appliedWorkerOutputs").get("approve-request").asLong()).isEqualTo(1);
+  }
+
+  @Test
+  void shouldCompleteProcessWaitingForConfiguredMessage() throws Exception {
+    // given
+    final var resources = tempDir.resolve("message-resources");
+    Files.createDirectories(resources);
+    Files.writeString(resources.resolve("payload.json"), "{\"orderId\":\"order-1\"}");
+    Files.writeString(
+        resources.resolve("message.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:message id="payment_message" name="payment-received" />
+          <bpmn:process id="message-process" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="wait_payment" />
+            <bpmn:intermediateCatchEvent id="wait_payment">
+              <bpmn:messageEventDefinition messageRef="payment_message">
+                <bpmn:extensionElements>
+                  <zeebe:subscription correlationKey="=orderId" />
+                </bpmn:extensionElements>
+              </bpmn:messageEventDefinition>
+            </bpmn:intermediateCatchEvent>
+            <bpmn:sequenceFlow id="flow2" sourceRef="wait_payment" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("message-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "message-process", "payload.json"),
+                    new WorkloadSettings(
+                        1,
+                        1,
+                        Map.of(),
+                        List.of(
+                            new WorkloadConfig.MessageConfig(
+                                "payment-received", "order-1", null, Map.of("paid", true), null))),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("publishedMessages").get("payment-received").asLong()).isEqualTo(1);
+  }
+
+  @Test
+  void shouldCompleteConfiguredUserTask() throws Exception {
+    // given
+    final var resources = tempDir.resolve("user-task-resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("user-task.bpmn"),
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            id="definitions"
+            targetNamespace="http://camunda.io/schema/bpmn">
+          <bpmn:process id="approval" isExecutable="true">
+            <bpmn:startEvent id="start" />
+            <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="approve_invoice" />
+            <bpmn:userTask id="approve_invoice" name="Approve invoice">
+              <bpmn:extensionElements>
+                <zeebe:userTask />
+              </bpmn:extensionElements>
+            </bpmn:userTask>
+            <bpmn:sequenceFlow id="flow2" sourceRef="approve_invoice" targetRef="end" />
+            <bpmn:endEvent id="end" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """);
+    final var output = tempDir.resolve("user-task-output");
+
+    // when
+    final var result =
+        new RuntimeWorkloadGenerator()
+            .generate(
+                new WorkloadConfig(
+                    new RuntimeConfig("camunda/camunda:8.8.0"),
+                    new ResourcesConfig(resources.toString(), "approval", null),
+                    new WorkloadSettings(
+                        1,
+                        1,
+                        Map.of(),
+                        List.of(),
+                        List.of(
+                            new WorkloadConfig.UserTaskConfig(
+                                null, "Approve invoice", Map.of("approved", true)))),
+                    new OutputConfig(output.toString())));
+
+    // then
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(1);
+    assertThat(report.get("completedUserTasks").get("approve_invoice").asLong()).isEqualTo(1);
+  }
+}
