@@ -37,3 +37,5 @@ Generate artifacts in an environment with Docker/Testcontainers support:
 ```bash
 java -jar target/camunda-workload-generator-0.1.0-SNAPSHOT.jar generate --config examples/realistic/workload.yaml
 ```
+
+The generated manifest and report are written under `build/examples/realistic`.
