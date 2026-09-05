@@ -26,7 +26,7 @@ public final class WorkloadConfig {
   public static WorkloadConfig defaults() {
     return new WorkloadConfig(
         new RuntimeConfig("camunda/camunda:8.8.0"),
-        new ResourcesConfig("resources", null),
+        new ResourcesConfig("resources", null, null),
         new WorkloadSettings(1, 0),
         new OutputConfig("build/camunda-workload-generator"));
   }
@@ -39,7 +39,8 @@ public final class WorkloadConfig {
       resources =
           new ResourcesConfig(
               choose(raw.resources.directory, resources.directory()),
-              choose(raw.resources.rootProcessId, resources.rootProcessId()));
+              choose(raw.resources.rootProcessId, resources.rootProcessId()),
+              choose(raw.resources.payload, resources.payload()));
     }
     if (raw.workload != null) {
       workload =
@@ -60,10 +61,17 @@ public final class WorkloadConfig {
       runtime = new RuntimeConfig(overrides.image());
     }
     if (overrides.resourcesDirectory() != null) {
-      resources = new ResourcesConfig(overrides.resourcesDirectory(), resources.rootProcessId());
+      resources =
+          new ResourcesConfig(
+              overrides.resourcesDirectory(), resources.rootProcessId(), resources.payload());
     }
     if (overrides.rootProcessId() != null) {
-      resources = new ResourcesConfig(resources.directory(), overrides.rootProcessId());
+      resources =
+          new ResourcesConfig(resources.directory(), overrides.rootProcessId(), resources.payload());
+    }
+    if (overrides.payload() != null) {
+      resources =
+          new ResourcesConfig(resources.directory(), resources.rootProcessId(), overrides.payload());
     }
     if (overrides.startInstances() != null) {
       workload = new WorkloadSettings(overrides.startInstances(), workload.completeInstances());
@@ -82,6 +90,9 @@ public final class WorkloadConfig {
     requireNonBlank("resources.directory", resources.directory(), errors);
     if (resources.rootProcessId() != null) {
       requireNonBlank("resources.rootProcessId", resources.rootProcessId(), errors);
+    }
+    if (resources.payload() != null) {
+      requireNonBlank("resources.payload", resources.payload(), errors);
     }
     requireNonNegative("workload.startInstances", workload.startInstances(), errors);
     requireNonNegative("workload.completeInstances", workload.completeInstances(), errors);
@@ -132,7 +143,7 @@ public final class WorkloadConfig {
 
   public record RuntimeConfig(String image) {}
 
-  public record ResourcesConfig(String directory, String rootProcessId) {}
+  public record ResourcesConfig(String directory, String rootProcessId, String payload) {}
 
   public record WorkloadSettings(int startInstances, int completeInstances) {}
 

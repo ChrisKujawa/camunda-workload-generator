@@ -4,11 +4,12 @@ public record ConfigOverrides(
     String image,
     String resourcesDirectory,
     String rootProcessId,
+    String payload,
     Integer startInstances,
     Integer completeInstances,
     String outputPath) {
 
   public static ConfigOverrides none() {
-    return new ConfigOverrides(null, null, null, null, null, null);
+    return new ConfigOverrides(null, null, null, null, null, null, null);
   }
 }

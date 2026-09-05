@@ -37,7 +37,7 @@ final class ManifestWriterTest {
     final var config =
         new WorkloadConfig(
             new WorkloadConfig.RuntimeConfig("camunda/camunda:8.8.0"),
-            new WorkloadConfig.ResourcesConfig(tempDir.toString(), "invoice"),
+            new WorkloadConfig.ResourcesConfig(tempDir.toString(), "invoice", "payload.json"),
             new WorkloadConfig.WorkloadSettings(10, 4),
             new WorkloadConfig.OutputConfig(tempDir.resolve("out").toString()));
     final var resourceAnalysis = new WorkloadResourceAnalyzer().analyze(tempDir);
@@ -53,6 +53,7 @@ final class ManifestWriterTest {
     assertThat(json.get("runtime").get("image").asText()).isEqualTo("camunda/camunda:8.8.0");
     assertThat(json.get("workload").get("rootProcessId").asText()).isEqualTo("invoice");
     assertThat(json.get("workload").get("startInstances").asInt()).isEqualTo(10);
+    assertThat(json.get("resources").get("payload").asText()).isEqualTo("payload.json");
     assertThat(json.get("resources").get("deployableResources").get(0).get("path").asText())
         .isEqualTo("invoice.bpmn");
     assertThat(json.get("resources").get("payloadOrConfigResources").get(0).get("path").asText())

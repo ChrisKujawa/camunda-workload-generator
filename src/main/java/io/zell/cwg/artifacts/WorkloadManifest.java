@@ -41,6 +41,7 @@ public record WorkloadManifest(
 
   public record ResourceMetadata(
       String directory,
+      String payload,
       List<ResourceEntry> deployableResources,
       List<ResourceEntry> payloadOrConfigResources,
       List<String> processIds,
@@ -63,6 +64,7 @@ public record WorkloadManifest(
         final WorkloadConfig config, final WorkloadResourceAnalysis resourceAnalysis) {
       return new ResourceMetadata(
           config.getResources().directory(),
+          normalized(config.getResources().payload()),
           resourceAnalysis.scan().deployableResources().stream().map(ResourceEntry::from).toList(),
           resourceAnalysis.scan().payloadOrConfigResources().stream().map(ResourceEntry::from).toList(),
           resourceAnalysis.processIds(),
@@ -116,5 +118,11 @@ public record WorkloadManifest(
       throw new IllegalArgumentException("%s must not be blank".formatted(name));
     }
     return value;
+  }
+
+  private static String normalized(final String path) {
+    return path == null
+        ? null
+        : java.nio.file.Path.of(path).normalize().toString().replace('\\', '/');
   }
 }

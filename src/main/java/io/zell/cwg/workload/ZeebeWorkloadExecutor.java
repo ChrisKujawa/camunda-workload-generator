@@ -19,7 +19,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   public WorkloadExecution execute(
       final String gatewayAddress,
       final WorkloadConfig config,
-      final WorkloadResourceAnalysis resourceAnalysis) {
+      final WorkloadResourceAnalysis resourceAnalysis,
+      final Map<String, Object> payloadVariables) {
     final var startInstances = config.getWorkload().startInstances();
     final var completeInstances = config.getWorkload().completeInstances();
     if (startInstances == 0) {
@@ -36,8 +37,14 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     try (final var client =
         ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
       completeProcessInstances(
-          client, resourceAnalysis, rootProcessId, completeInstances, completedJobs);
-      startActiveProcessInstances(client, rootProcessId, startInstances - completeInstances);
+          client,
+          resourceAnalysis,
+          rootProcessId,
+          completeInstances,
+          payloadVariables,
+          completedJobs);
+      startActiveProcessInstances(
+          client, rootProcessId, startInstances - completeInstances, payloadVariables);
     }
 
     return new WorkloadExecution(
@@ -53,6 +60,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       final WorkloadResourceAnalysis resourceAnalysis,
       final String rootProcessId,
       final int completeInstances,
+      final Map<String, Object> payloadVariables,
       final ConcurrentHashMap<String, LongAdder> completedJobs) {
     if (completeInstances == 0) {
       return;
@@ -61,28 +69,54 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     try (final var workers = new GenericWorkers(client, resourceAnalysis, completedJobs)) {
       workers.open();
       for (int i = 0; i < completeInstances; i++) {
-        client
-            .newCreateInstanceCommand()
-            .bpmnProcessId(rootProcessId)
-            .latestVersion()
-            .withResult()
-            .requestTimeout(COMMAND_TIMEOUT)
-            .send()
-            .join();
+        if (payloadVariables.isEmpty()) {
+          client
+              .newCreateInstanceCommand()
+              .bpmnProcessId(rootProcessId)
+              .latestVersion()
+              .withResult()
+              .requestTimeout(COMMAND_TIMEOUT)
+              .send()
+              .join();
+        } else {
+          client
+              .newCreateInstanceCommand()
+              .bpmnProcessId(rootProcessId)
+              .latestVersion()
+              .variables(payloadVariables)
+              .withResult()
+              .requestTimeout(COMMAND_TIMEOUT)
+              .send()
+              .join();
+        }
       }
     }
   }
 
   private static void startActiveProcessInstances(
-      final ZeebeClient client, final String rootProcessId, final int activeInstances) {
+      final ZeebeClient client,
+      final String rootProcessId,
+      final int activeInstances,
+      final Map<String, Object> payloadVariables) {
     for (int i = 0; i < activeInstances; i++) {
-      client
-          .newCreateInstanceCommand()
-          .bpmnProcessId(rootProcessId)
-          .latestVersion()
-          .requestTimeout(COMMAND_TIMEOUT)
-          .send()
-          .join();
+      if (payloadVariables.isEmpty()) {
+        client
+            .newCreateInstanceCommand()
+            .bpmnProcessId(rootProcessId)
+            .latestVersion()
+            .requestTimeout(COMMAND_TIMEOUT)
+            .send()
+            .join();
+      } else {
+        client
+            .newCreateInstanceCommand()
+            .bpmnProcessId(rootProcessId)
+            .latestVersion()
+            .variables(payloadVariables)
+            .requestTimeout(COMMAND_TIMEOUT)
+            .send()
+            .join();
+      }
     }
   }
 

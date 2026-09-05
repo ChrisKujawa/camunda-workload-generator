@@ -24,6 +24,7 @@ final class ConfigLoaderTest {
         resources:
           directory: config-resources
           rootProcessId: invoice
+          payload: config-payload.json
         workload:
           startInstances: 10
         output:
@@ -35,12 +36,19 @@ final class ConfigLoaderTest {
         ConfigLoader.load(
             configFile,
             new ConfigOverrides(
-                "camunda/camunda:8.8.2", null, "order", null, 7, "build/cli-output"));
+                "camunda/camunda:8.8.2",
+                null,
+                "order",
+                "cli-payload.json",
+                null,
+                7,
+                "build/cli-output"));
 
     // then
     assertThat(config.getRuntime().image()).isEqualTo("camunda/camunda:8.8.2");
     assertThat(config.getResources().directory()).isEqualTo("config-resources");
     assertThat(config.getResources().rootProcessId()).isEqualTo("order");
+    assertThat(config.getResources().payload()).isEqualTo("cli-payload.json");
     assertThat(config.getWorkload().startInstances()).isEqualTo(10);
     assertThat(config.getWorkload().completeInstances()).isEqualTo(7);
     assertThat(config.getOutput().path()).isEqualTo("build/cli-output");
@@ -54,6 +62,7 @@ final class ConfigLoaderTest {
     // then
     assertThat(config.getRuntime().image()).isEqualTo("camunda/camunda:8.8.0");
     assertThat(config.getResources().directory()).isEqualTo("resources");
+    assertThat(config.getResources().payload()).isNull();
     assertThat(config.getWorkload().startInstances()).isEqualTo(1);
     assertThat(config.getWorkload().completeInstances()).isZero();
     assertThat(config.getOutput().path()).isEqualTo("build/camunda-workload-generator");
@@ -88,5 +97,22 @@ final class ConfigLoaderTest {
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining(
             "workload.completeInstances must be less than or equal to workload.startInstances");
+  }
+
+  @Test
+  void shouldRejectBlankPayloadPath() throws Exception {
+    // given
+    final var configFile = tempDir.resolve("workload.yaml");
+    Files.writeString(
+        configFile,
+        """
+        resources:
+          payload: " "
+        """);
+
+    // when / then
+    assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("resources.payload must not be blank");
   }
 }

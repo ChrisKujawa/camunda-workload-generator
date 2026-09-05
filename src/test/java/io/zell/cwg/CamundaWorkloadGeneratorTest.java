@@ -26,6 +26,7 @@ final class CamundaWorkloadGeneratorTest {
         resources:
           directory: src/test/resources/workload
           rootProcessId: invoice
+          payload: from-config.json
         workload:
           startInstances: 10
           completeInstances: 4
@@ -50,6 +51,8 @@ final class CamundaWorkloadGeneratorTest {
             "models",
             "--root-process",
             "order",
+            "--payload",
+            "from-cli.json",
             "--start-instances",
             "12",
             "--complete-instances",
@@ -64,6 +67,7 @@ final class CamundaWorkloadGeneratorTest {
         .contains("image: \"camunda/camunda:8.8.2\"")
         .contains("directory: \"models\"")
         .contains("rootProcessId: \"order\"")
+        .contains("payload: \"from-cli.json\"")
         .contains("startInstances: 12")
         .contains("completeInstances: 5")
         .contains("path: \"build/from-cli\"");
