@@ -21,6 +21,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -125,6 +127,10 @@ final class RuntimeWorkloadGeneratorTest {
     assertThat(output.resolve("zeebe-data/partitions/1/runtime/state/data.txt"))
         .hasContent("zeebe data");
     assertThat(output.resolve("zeebe-data.zip")).exists().isRegularFile();
+    try (final var zipFile = new ZipFile(output.resolve("zeebe-data.zip").toFile())) {
+      assertThat(zipFile.stream().map(ZipEntry::getName).toList())
+          .containsExactly("zeebe-data/partitions/1/runtime/state/data.txt");
+    }
     assertThat(Files.readString(result.reportPath()))
         .contains("\"startedInstances\" : 3")
         .contains("\"completedInstances\" : 2")

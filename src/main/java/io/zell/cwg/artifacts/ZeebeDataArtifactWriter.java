@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -36,18 +38,34 @@ public final class ZeebeDataArtifactWriter {
   private static Path zipDirectory(final Path sourceDirectory, final Path zipPath)
       throws IOException {
     Files.createDirectories(zipPath.getParent());
-    try (final var zipOutput = new ZipOutputStream(Files.newOutputStream(zipPath));
-        final var paths = Files.walk(sourceDirectory)) {
-      final var files = paths.filter(Files::isRegularFile).iterator();
-      while (files.hasNext()) {
-        final var file = files.next();
-        final var entryName = sourceDirectory.relativize(file).toString().replace('\\', '/');
-        zipOutput.putNextEntry(new ZipEntry(entryName));
-        Files.copy(file, zipOutput);
+    try (final var zipOutput = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+      writeZipEntries(zipOutput, sourceDirectory, sourceDirectory);
+    }
+    return zipPath;
+  }
+
+  private static void writeZipEntries(
+      final ZipOutputStream zipOutput, final Path rootDirectory, final Path currentDirectory)
+      throws IOException {
+    final var entries = new ArrayList<Path>();
+    try (final var paths = Files.list(currentDirectory)) {
+      final var iterator = paths.iterator();
+      while (iterator.hasNext()) {
+        entries.add(iterator.next());
+      }
+    }
+
+    entries.sort(Comparator.comparing(path -> path.getFileName().toString()));
+    for (final var entry : entries) {
+      if (Files.isDirectory(entry)) {
+        writeZipEntries(zipOutput, rootDirectory, entry);
+      } else if (Files.isRegularFile(entry)) {
+        final var relativePath = rootDirectory.relativize(entry).toString().replace('\\', '/');
+        zipOutput.putNextEntry(new ZipEntry(ZEEBE_DATA_DIRECTORY + "/" + relativePath));
+        Files.copy(entry, zipOutput);
         zipOutput.closeEntry();
       }
     }
-    return zipPath;
   }
 
   private static void deleteIfExists(final Path path) throws IOException {
