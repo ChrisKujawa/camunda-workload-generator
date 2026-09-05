@@ -35,11 +35,12 @@ public record BpmnAnalysis(
   public record HappyPathNode(
       String elementId, String elementName, String elementType, String jobType) {}
 
-  public record StaticJobType(String elementId, String elementName, String type) {}
+  public record StaticJobType(String elementId, String elementName, String type, String processId) {}
 
-  public record CallActivity(String elementId, String elementName, String calledProcessId) {}
+  public record CallActivity(
+      String elementId, String elementName, String calledProcessId, String processId) {}
 
-  public record MessageReference(String elementId, String messageRef) {}
+  public record MessageReference(String elementId, String messageRef, String processId) {}
 
-  public record DmnReference(String elementId, String decisionId) {}
+  public record DmnReference(String elementId, String decisionId, String processId) {}
 }

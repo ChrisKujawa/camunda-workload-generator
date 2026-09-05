@@ -192,4 +192,62 @@ final class CamundaWorkloadGeneratorTest {
         .contains("- serviceTask charge_card \"Charge card\" worker=charge-card")
         .contains("Workers:%n- charge-card".formatted());
   }
+
+  @Test
+  void shouldAnalyzeSelectedProcessMetadataFromCli() throws Exception {
+    // given
+    final var bpmnFile = tempDir.resolve("multi-process.bpmn");
+    Files.writeString(
+        bpmnFile,
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
+          <message id="child_message" name="child-message" />
+          <process id="parent">
+            <startEvent id="parent_start" />
+            <serviceTask id="parent_task">
+              <extensionElements>
+                <zeebe:taskDefinition type="parent-worker" />
+              </extensionElements>
+            </serviceTask>
+          </process>
+          <process id="child">
+            <startEvent id="child_start">
+              <outgoing>child_flow</outgoing>
+              <messageEventDefinition messageRef="child_message" />
+            </startEvent>
+            <businessRuleTask id="child_decision">
+              <extensionElements>
+                <zeebe:calledDecision decisionId="childDecision" />
+              </extensionElements>
+              <incoming>child_flow</incoming>
+            </businessRuleTask>
+            <serviceTask id="child_task">
+              <extensionElements>
+                <zeebe:taskDefinition type="child-worker" />
+              </extensionElements>
+            </serviceTask>
+            <sequenceFlow id="child_flow" sourceRef="child_start" targetRef="child_decision" />
+          </process>
+        </definitions>
+        """);
+    final var out = new StringWriter();
+    final var err = new StringWriter();
+    final var command = new CommandLine(new CamundaWorkloadGenerator.RootCommand());
+    command.setOut(new PrintWriter(out));
+    command.setErr(new PrintWriter(err));
+
+    // when
+    final var exitCode = command.execute("analyze-process", bpmnFile.toString(), "--process", "child");
+
+    // then
+    assertThat(exitCode).isZero();
+    assertThat(err.toString()).isEmpty();
+    assertThat(out.toString())
+        .contains("Selected process: child")
+        .contains("child-worker")
+        .contains("child_message")
+        .contains("childDecision")
+        .doesNotContain("parent-worker");
+  }
 }

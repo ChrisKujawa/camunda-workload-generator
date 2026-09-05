@@ -82,7 +82,14 @@ public final class BpmnAnalyzer {
 
   private List<ProcessPath> processPaths(final Document document) {
     final var processPaths = new ArrayList<ProcessPath>();
-    forEachElement(document, "process", process -> processPaths.add(processPath(process)));
+    forEachElement(
+        document,
+        "process",
+        process -> {
+          if (!process.getAttribute("id").isBlank()) {
+            processPaths.add(processPath(process));
+          }
+        });
     return processPaths;
   }
 
@@ -150,7 +157,8 @@ public final class BpmnAnalyzer {
                 new StaticJobType(
                     owner == null ? "" : owner.getAttribute("id"),
                     owner == null ? "" : owner.getAttribute("name"),
-                    type));
+                    type,
+                    processId(owner)));
           }
         });
     return jobTypes;
@@ -188,7 +196,8 @@ public final class BpmnAnalyzer {
               new CallActivity(
                   callActivity.getAttribute("id"),
                   callActivity.getAttribute("name"),
-                  calledProcessId));
+                  calledProcessId,
+                  processId(callActivity)));
         });
     return callActivities;
   }
@@ -203,7 +212,8 @@ public final class BpmnAnalyzer {
           if (!messageRef.isBlank()) {
             final var owner = ownerElement(messageEventDefinition);
             messageReferences.add(
-                new MessageReference(owner == null ? "" : owner.getAttribute("id"), messageRef));
+                new MessageReference(
+                    owner == null ? "" : owner.getAttribute("id"), messageRef, processId(owner)));
           }
         });
     return messageReferences;
@@ -219,7 +229,8 @@ public final class BpmnAnalyzer {
           if (!decisionId.isBlank()) {
             final var owner = ownerElement(calledDecision);
             dmnReferences.add(
-                new DmnReference(owner == null ? "" : owner.getAttribute("id"), decisionId));
+                new DmnReference(
+                    owner == null ? "" : owner.getAttribute("id"), decisionId, processId(owner)));
           }
         });
     return dmnReferences;
@@ -262,6 +273,19 @@ public final class BpmnAnalyzer {
       }
     }
     return null;
+  }
+
+  private static String processId(final Element element) {
+    var current = element;
+    while (current != null) {
+      if ("process".equals(localName(current))) {
+        return current.getAttribute("id");
+      }
+      final var parent = current.getParentNode();
+      current =
+          parent != null && parent.getNodeType() == Node.ELEMENT_NODE ? (Element) parent : null;
+    }
+    return "";
   }
 
   private static List<Element> directChildElements(final Element element) {

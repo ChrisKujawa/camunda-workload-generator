@@ -58,17 +58,56 @@ final class BpmnAnalyzerTest {
     // then
     assertThat(analysis.processIds()).containsExactly("invoice");
     assertThat(analysis.staticJobTypes())
-        .extracting(BpmnAnalysis.StaticJobType::elementId, BpmnAnalysis.StaticJobType::type)
-        .containsExactly(tuple("charge_card", "charge-card"));
+        .extracting(
+            BpmnAnalysis.StaticJobType::elementId,
+            BpmnAnalysis.StaticJobType::type,
+            BpmnAnalysis.StaticJobType::processId)
+        .containsExactly(tuple("charge_card", "charge-card", "invoice"));
     assertThat(analysis.callActivities())
-        .extracting(BpmnAnalysis.CallActivity::elementId, BpmnAnalysis.CallActivity::calledProcessId)
-        .containsExactly(tuple("call_subprocess", "subprocess"));
+        .extracting(
+            BpmnAnalysis.CallActivity::elementId,
+            BpmnAnalysis.CallActivity::calledProcessId,
+            BpmnAnalysis.CallActivity::processId)
+        .containsExactly(tuple("call_subprocess", "subprocess", "invoice"));
     assertThat(analysis.messageReferences())
-        .extracting(BpmnAnalysis.MessageReference::elementId, BpmnAnalysis.MessageReference::messageRef)
-        .containsExactly(tuple("start", "Message_Invoice"));
+        .extracting(
+            BpmnAnalysis.MessageReference::elementId,
+            BpmnAnalysis.MessageReference::messageRef,
+            BpmnAnalysis.MessageReference::processId)
+        .containsExactly(tuple("start", "Message_Invoice", "invoice"));
     assertThat(analysis.dmnReferences())
-        .extracting(BpmnAnalysis.DmnReference::elementId, BpmnAnalysis.DmnReference::decisionId)
-        .containsExactly(tuple("decide_invoice", "invoiceDecision"));
+        .extracting(
+            BpmnAnalysis.DmnReference::elementId,
+            BpmnAnalysis.DmnReference::decisionId,
+            BpmnAnalysis.DmnReference::processId)
+        .containsExactly(tuple("decide_invoice", "invoiceDecision", "invoice"));
+  }
+
+  @Test
+  void shouldSkipProcessPathsWithoutProcessId() throws Exception {
+    // given
+    final var bpmnFile = tempDir.resolve("blank-process.bpmn");
+    Files.writeString(
+        bpmnFile,
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <process>
+            <startEvent id="blank_start" />
+          </process>
+          <process id="invoice">
+            <startEvent id="start" />
+          </process>
+        </definitions>
+        """);
+
+    // when
+    final var analysis = new BpmnAnalyzer().analyze(bpmnFile);
+
+    // then
+    assertThat(analysis.processIds()).containsExactly("invoice");
+    assertThat(analysis.processPaths())
+        .extracting(BpmnAnalysis.ProcessPath::processId)
+        .containsExactly("invoice");
   }
 
   @Test

@@ -4,6 +4,7 @@ import io.zell.cwg.bpmn.BpmnAnalysis.CallActivity;
 import io.zell.cwg.bpmn.BpmnAnalysis.DmnReference;
 import io.zell.cwg.bpmn.BpmnAnalysis.MessageReference;
 import io.zell.cwg.bpmn.BpmnAnalysis.ProcessPath;
+import io.zell.cwg.bpmn.BpmnAnalysis.StaticJobType;
 import io.zell.cwg.bpmn.BpmnAnalyzer;
 import io.zell.cwg.config.ConfigException;
 import java.io.IOException;
@@ -56,18 +57,17 @@ public final class AnalyzeProcessCommand implements Callable<Integer> {
                       node.elementId(),
                       node.elementName().isBlank() ? "" : " \"" + node.elementName() + "\"",
                       node.jobType() == null ? "" : " worker=" + node.jobType()));
+      final var staticJobTypes = staticJobTypes(analysis.staticJobTypes(), processPath);
       out.println("Static job types:");
-      analysis
-          .staticJobTypes()
-          .forEach(jobType -> out.printf("- %s (%s)%n", jobType.type(), jobType.elementId()));
+      staticJobTypes.forEach(jobType -> out.printf("- %s (%s)%n", jobType.type(), jobType.elementId()));
       out.println("Workers:");
-      analysis.staticJobTypes().stream()
+      staticJobTypes.stream()
           .map(jobType -> jobType.type())
           .distinct()
           .forEach(worker -> out.printf("- %s%n", worker));
-      printCallActivities(analysis.callActivities());
-      printMessageReferences(analysis.messageReferences());
-      printDmnReferences(analysis.dmnReferences());
+      printCallActivities(callActivities(analysis.callActivities(), processPath));
+      printMessageReferences(messageReferences(analysis.messageReferences(), processPath));
+      printDmnReferences(dmnReferences(analysis.dmnReferences(), processPath));
       out.flush();
       return CommandLine.ExitCode.OK;
     } catch (final ConfigException e) {
@@ -97,6 +97,34 @@ public final class AnalyzeProcessCommand implements Callable<Integer> {
             () ->
                 new ConfigException(
                     "Process '%s' does not exist in %s".formatted(processId, bpmnFile)));
+  }
+
+  private static List<StaticJobType> staticJobTypes(
+      final List<StaticJobType> staticJobTypes, final ProcessPath processPath) {
+    return staticJobTypes.stream()
+        .filter(jobType -> processPath.processId().equals(jobType.processId()))
+        .toList();
+  }
+
+  private static List<CallActivity> callActivities(
+      final List<CallActivity> callActivities, final ProcessPath processPath) {
+    return callActivities.stream()
+        .filter(callActivity -> processPath.processId().equals(callActivity.processId()))
+        .toList();
+  }
+
+  private static List<MessageReference> messageReferences(
+      final List<MessageReference> messageReferences, final ProcessPath processPath) {
+    return messageReferences.stream()
+        .filter(messageReference -> processPath.processId().equals(messageReference.processId()))
+        .toList();
+  }
+
+  private static List<DmnReference> dmnReferences(
+      final List<DmnReference> dmnReferences, final ProcessPath processPath) {
+    return dmnReferences.stream()
+        .filter(dmnReference -> processPath.processId().equals(dmnReference.processId()))
+        .toList();
   }
 
   private void printCallActivities(final List<CallActivity> callActivities) {
