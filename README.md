@@ -83,6 +83,7 @@ runtime:
 resources:
   directory: resources
   rootProcessId: invoice
+  payload: payload.json
 workload:
   startInstances: 10
   completeInstances: 4
@@ -144,6 +145,9 @@ the configured output directory.
 After deployment, `generate` opens generic workers for statically detected
 Zeebe job types, completes `workload.completeInstances` root process instances
 with `withResult()`, closes the workers, then starts the remaining configured
-instances so they stay active. Worker-specific variables, dynamic job types,
+instances so they stay active. If `resources.payload` or `--payload` points to a
+JSON object, that object is sent as start variables for both completed and active
+instances. Relative payload paths are resolved from the configured resources
+directory. Worker-specific variables, dynamic job types,
 messages, user tasks, incidents, and connector behavior are handled by later
 slices.

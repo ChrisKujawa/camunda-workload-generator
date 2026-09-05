@@ -20,15 +20,18 @@ final class GenerateCommandTest {
     // given
     final var resources = tempDir.resolve("resources");
     Files.createDirectories(resources);
+    Files.writeString(resources.resolve("payload.json"), "{}");
     final var output = tempDir.resolve("output");
     final var out = new StringWriter();
     final var err = new StringWriter();
     final var command =
         new CommandLine(
                 new GenerateCommand(
-                    config ->
-                        new GenerationResult(
-                            1, output.resolve("manifest.json"), output.resolve("report.json"))))
+                    config -> {
+                      assertThat(config.getResources().payload()).isEqualTo("payload.json");
+                      return new GenerationResult(
+                          1, output.resolve("manifest.json"), output.resolve("report.json"));
+                    }))
             .setOut(new PrintWriter(out))
             .setErr(new PrintWriter(err));
 
@@ -37,6 +40,8 @@ final class GenerateCommandTest {
         command.execute(
             "--resources",
             resources.toString(),
+            "--payload",
+            "payload.json",
             "--output",
             output.toString());
 

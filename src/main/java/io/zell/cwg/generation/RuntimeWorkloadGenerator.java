@@ -14,6 +14,7 @@ import io.zell.cwg.resources.WorkloadResourceAnalysis;
 import io.zell.cwg.resources.WorkloadResourceAnalyzer;
 import io.zell.cwg.runtime.CamundaRuntimeFactory;
 import io.zell.cwg.runtime.ManagedCamundaRuntime;
+import io.zell.cwg.workload.PayloadVariablesLoader;
 import io.zell.cwg.workload.WorkloadExecution;
 import io.zell.cwg.workload.WorkloadExecutor;
 import io.zell.cwg.workload.ZeebeWorkloadExecutor;
@@ -28,6 +29,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
   private final CamundaRuntimeFactory runtimeFactory;
   private final ResourceDeployment resourceDeployment;
   private final WorkloadExecutor workloadExecutor;
+  private final PayloadVariablesLoader payloadVariablesLoader;
   private final ManifestWriter manifestWriter;
   private final ReportWriter reportWriter;
   private final Clock clock;
@@ -38,6 +40,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         ManagedCamundaRuntime::from,
         new ZeebeResourceDeployment(),
         new ZeebeWorkloadExecutor(),
+        new PayloadVariablesLoader(),
         new ManifestWriter(),
         new ReportWriter(),
         Clock.systemUTC());
@@ -48,6 +51,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       final CamundaRuntimeFactory runtimeFactory,
       final ResourceDeployment resourceDeployment,
       final WorkloadExecutor workloadExecutor,
+      final PayloadVariablesLoader payloadVariablesLoader,
       final ManifestWriter manifestWriter,
       final ReportWriter reportWriter,
       final Clock clock) {
@@ -55,6 +59,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
     this.runtimeFactory = runtimeFactory;
     this.resourceDeployment = resourceDeployment;
     this.workloadExecutor = workloadExecutor;
+    this.payloadVariablesLoader = payloadVariablesLoader;
     this.manifestWriter = manifestWriter;
     this.reportWriter = reportWriter;
     this.clock = clock;
@@ -68,6 +73,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       throw new ConfigException(
           "No deployable BPMN, DMN, or form resources found in %s".formatted(resourcesDirectory));
     }
+    final var payloadVariables = payloadVariablesLoader.load(config);
     final var outputDirectory = Path.of(config.getOutput().path());
 
     final int deployedResources;
@@ -79,7 +85,8 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
               runtime.gatewayAddress(), resourceAnalysis.scan().deployableResources());
       deployedResources = deployment.deployedResourceCount();
       workloadExecution =
-          workloadExecutor.execute(runtime.gatewayAddress(), config, resourceAnalysis);
+          workloadExecutor.execute(
+              runtime.gatewayAddress(), config, resourceAnalysis, payloadVariables);
     }
 
     final var generatedAt = Instant.now(clock).toString();

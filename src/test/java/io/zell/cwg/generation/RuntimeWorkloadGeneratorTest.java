@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -44,9 +45,19 @@ final class RuntimeWorkloadGeneratorTest {
           </process>
         </definitions>
         """);
+    Files.writeString(
+        resources.resolve("payload.json"),
+        """
+        {
+          "customerId": "C-123",
+          "amount": 42,
+          "vip": true
+        }
+        """);
     final var output = tempDir.resolve("output");
     final var runtime = new FakeRuntime();
     final var deployedPaths = new ArrayList<Path>();
+    final var executedPayloads = new ArrayList<Map<String, Object>>();
     final var generator =
         new RuntimeWorkloadGenerator(
             new io.zell.cwg.resources.WorkloadResourceAnalyzer(),
@@ -56,8 +67,11 @@ final class RuntimeWorkloadGeneratorTest {
               deployableResources.forEach(resource -> deployedPaths.add(resource.relativePath()));
               return new DeploymentResult(deployableResources);
             },
-            (gatewayAddress, config, analysis) ->
-                new WorkloadExecution(3, 2, 1, 0, java.util.Map.of("charge-card", 2L)),
+            (gatewayAddress, config, analysis, payloadVariables) -> {
+              executedPayloads.add(payloadVariables);
+              return new WorkloadExecution(3, 2, 1, 0, java.util.Map.of("charge-card", 2L));
+            },
+            new io.zell.cwg.workload.PayloadVariablesLoader(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
@@ -67,7 +81,7 @@ final class RuntimeWorkloadGeneratorTest {
         generator.generate(
             new WorkloadConfig(
                 new RuntimeConfig("camunda/camunda:8.8.0"),
-                new ResourcesConfig(resources.toString(), "invoice"),
+                new ResourcesConfig(resources.toString(), "invoice", "payload.json"),
                 new WorkloadSettings(3, 2),
                 new OutputConfig(output.toString())));
 
@@ -75,10 +89,19 @@ final class RuntimeWorkloadGeneratorTest {
     assertThat(runtime.started).isTrue();
     assertThat(runtime.closed).isTrue();
     assertThat(deployedPaths).containsExactly(Path.of("invoice.bpmn"));
+    assertThat(executedPayloads)
+        .singleElement()
+        .satisfies(
+            payload -> {
+              assertThat(payload).containsEntry("customerId", "C-123");
+              assertThat(payload).containsEntry("amount", 42);
+              assertThat(payload).containsEntry("vip", true);
+            });
     assertThat(result.deployedResources()).isEqualTo(1);
     assertThat(Files.readString(result.manifestPath()))
         .contains("\"image\" : \"camunda/camunda:8.8.0\"")
         .contains("\"rootProcessId\" : \"invoice\"")
+        .contains("\"payload\" : \"payload.json\"")
         .contains("\"path\" : \"invoice.bpmn\"");
     assertThat(Files.readString(result.reportPath()))
         .contains("\"startedInstances\" : 3")
@@ -99,7 +122,8 @@ final class RuntimeWorkloadGeneratorTest {
             new io.zell.cwg.resources.WorkloadResourceAnalyzer(),
             ignored -> runtime,
             (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
-            (gatewayAddress, config, analysis) -> WorkloadExecution.skipped(),
+            (gatewayAddress, config, analysis, payloadVariables) -> WorkloadExecution.skipped(),
+            new io.zell.cwg.workload.PayloadVariablesLoader(),
             new io.zell.cwg.artifacts.ManifestWriter(),
             new io.zell.cwg.artifacts.ReportWriter(),
             Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
@@ -111,7 +135,7 @@ final class RuntimeWorkloadGeneratorTest {
                 generator.generate(
                     new WorkloadConfig(
                         new RuntimeConfig("camunda/camunda:8.8.0"),
-                        new ResourcesConfig(resources.toString(), "invoice"),
+                        new ResourcesConfig(resources.toString(), "invoice", null),
                         new WorkloadSettings(3, 0),
                         new OutputConfig(tempDir.resolve("output").toString()))));
 
@@ -119,6 +143,48 @@ final class RuntimeWorkloadGeneratorTest {
     assertThat(thrown)
         .isInstanceOf(ConfigException.class)
         .hasMessageContaining("No deployable BPMN, DMN, or form resources found");
+    assertThat(runtime.started).isFalse();
+  }
+
+  @Test
+  void shouldRejectGenerateWhenPayloadFileIsMissingBeforeStartingRuntime() throws Exception {
+    // given
+    final var resources = tempDir.resolve("resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("invoice.bpmn"),
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <process id="invoice" />
+        </definitions>
+        """);
+    final var runtime = new FakeRuntime();
+    final var generator =
+        new RuntimeWorkloadGenerator(
+            new io.zell.cwg.resources.WorkloadResourceAnalyzer(),
+            ignored -> runtime,
+            (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
+            (gatewayAddress, config, analysis, payloadVariables) -> WorkloadExecution.skipped(),
+            new io.zell.cwg.workload.PayloadVariablesLoader(),
+            new io.zell.cwg.artifacts.ManifestWriter(),
+            new io.zell.cwg.artifacts.ReportWriter(),
+            Clock.fixed(Instant.parse("2026-09-05T05:00:00Z"), ZoneOffset.UTC));
+
+    // when
+    final Throwable thrown =
+        org.assertj.core.api.Assertions.catchThrowable(
+            () ->
+                generator.generate(
+                    new WorkloadConfig(
+                        new RuntimeConfig("camunda/camunda:8.8.0"),
+                        new ResourcesConfig(resources.toString(), "invoice", "missing.json"),
+                        new WorkloadSettings(1, 0),
+                        new OutputConfig(tempDir.resolve("output").toString()))));
+
+    // then
+    assertThat(thrown)
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("Payload file does not exist");
     assertThat(runtime.started).isFalse();
   }
 

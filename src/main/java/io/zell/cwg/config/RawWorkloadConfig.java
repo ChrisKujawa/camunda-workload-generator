@@ -13,6 +13,7 @@ public final class RawWorkloadConfig {
   public static final class ResourcesConfig {
     public String directory;
     public String rootProcessId;
+    public String payload;
   }
 
   public static final class WorkloadSettings {

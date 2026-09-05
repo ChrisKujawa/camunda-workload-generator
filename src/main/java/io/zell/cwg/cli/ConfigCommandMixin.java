@@ -28,6 +28,12 @@ public final class ConfigCommandMixin {
   String rootProcessId;
 
   @Option(
+      names = "--payload",
+      paramLabel = "FILE",
+      description = "JSON payload file used as process start variables.")
+  Path payload;
+
+  @Option(
       names = "--start-instances",
       paramLabel = "COUNT",
       description = "Number of process instances to start.")
@@ -53,6 +59,7 @@ public final class ConfigCommandMixin {
         image,
         resourcesDirectory == null ? null : resourcesDirectory.toString(),
         rootProcessId,
+        payload == null ? null : payload.toString(),
         startInstances,
         completeInstances,
         outputPath == null ? null : outputPath.toString());

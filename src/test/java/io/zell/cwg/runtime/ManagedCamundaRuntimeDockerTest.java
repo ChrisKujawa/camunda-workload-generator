@@ -56,7 +56,7 @@ final class ManagedCamundaRuntimeDockerTest {
             .generate(
                 new WorkloadConfig(
                     new RuntimeConfig("camunda/camunda:8.8.0"),
-                    new ResourcesConfig(resources.toString(), "invoice"),
+                    new ResourcesConfig(resources.toString(), "invoice", null),
                     new WorkloadSettings(3, 2),
                     new OutputConfig(output.toString())));
 
