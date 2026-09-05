@@ -2,6 +2,7 @@ package io.zell.cwg.generation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.config.WorkloadConfig.OutputConfig;
@@ -75,7 +76,7 @@ final class RuntimeWorkloadGeneratorTest {
                   1,
                   0,
                   java.util.Map.of("charge-card", 2L),
-                  java.util.Map.of("charge-card", 2L));
+                  java.util.Map.of("charge-card", 1L));
             },
             new io.zell.cwg.workload.PayloadVariablesLoader(),
             new io.zell.cwg.artifacts.ManifestWriter(),
@@ -110,14 +111,16 @@ final class RuntimeWorkloadGeneratorTest {
         .contains("\"rootProcessId\" : \"invoice\"")
         .contains("\"payload\" : \"payload.json\"")
         .contains("\"path\" : \"invoice.bpmn\"");
+    final var report = new ObjectMapper().readTree(result.reportPath().toFile());
     assertThat(Files.readString(result.reportPath()))
         .contains("\"startedInstances\" : 3")
         .contains("\"completedInstances\" : 2")
         .contains("\"activeInstances\" : 1")
         .contains("\"detectedJobTypes\" : [ \"charge-card\" ]")
         .contains("\"completedJobs\"")
-        .contains("\"appliedWorkerOutputs\"")
-        .contains("\"charge-card\" : 2");
+        .contains("\"appliedWorkerOutputs\"");
+    assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
+    assertThat(report.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(1);
   }
 
   @Test
