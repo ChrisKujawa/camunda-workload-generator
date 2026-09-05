@@ -2,11 +2,13 @@ package io.zell.cwg.workload;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Map;
@@ -78,10 +80,22 @@ final class PayloadVariablesLoaderTest {
   }
 
   @Test
+  void shouldRejectEmptyPayloadJson() throws Exception {
+    // given
+    Files.writeString(tempDir.resolve("payload.json"), "");
+
+    // when / then
+    assertThatThrownBy(() -> new PayloadVariablesLoader().load(config(tempDir, "payload.json")))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("Payload file must contain a JSON object");
+  }
+
+  @Test
   void shouldRejectUnreadablePayloadFile() throws Exception {
     // given
     final var payload = tempDir.resolve("payload.json");
     Files.writeString(payload, "{}");
+    assumeTrue(Files.getFileAttributeView(payload, PosixFileAttributeView.class) != null);
     Files.setPosixFilePermissions(payload, Set.of());
 
     try {

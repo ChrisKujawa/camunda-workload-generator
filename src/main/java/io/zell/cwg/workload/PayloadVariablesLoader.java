@@ -40,7 +40,7 @@ public final class PayloadVariablesLoader {
           "Failed to read payload file %s: %s".formatted(payloadPath, e.getMessage()));
     }
 
-    if (!payloadJson.isObject()) {
+    if (payloadJson == null || !payloadJson.isObject()) {
       throw new ConfigException(
           "Payload file must contain a JSON object: %s".formatted(payloadPath));
     }
