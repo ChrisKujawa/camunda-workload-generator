@@ -57,6 +57,18 @@ final class UserTaskCompletionsTest {
   }
 
   @Test
+  void shouldRejectMissingSelectorDuringResolution() {
+    // given
+    final var config =
+        config(new WorkloadConfig.UserTaskConfig(null, null, Map.of()));
+
+    // when / then
+    assertThatThrownBy(() -> UserTaskCompletions.from(config, analysis(userTask("approve_invoice", "Approve"))))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("User task completion must set elementId or name");
+  }
+
+  @Test
   void shouldRejectAmbiguousTaskName() {
     // given
     final var config =

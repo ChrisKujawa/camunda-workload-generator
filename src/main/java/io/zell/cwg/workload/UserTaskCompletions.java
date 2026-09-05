@@ -20,6 +20,9 @@ final class UserTaskCompletions {
 
   private static UserTaskCompletion completion(
       final WorkloadConfig.UserTaskConfig config, final WorkloadResourceAnalysis resourceAnalysis) {
+    if (config == null) {
+      throw new ConfigException("User task completion entry must not be null");
+    }
     if (config.elementId() != null && !config.elementId().isBlank()) {
       final var elementId = config.elementId().strip();
       final var exists =
@@ -31,6 +34,9 @@ final class UserTaskCompletions {
       return new UserTaskCompletion(elementId, config.variables());
     }
 
+    if (config.name() == null || config.name().isBlank()) {
+      throw new ConfigException("User task completion must set elementId or name");
+    }
     final var name = config.name().strip();
     final var matches =
         resourceAnalysis.userTasks().stream()

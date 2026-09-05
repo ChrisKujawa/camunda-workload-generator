@@ -45,7 +45,10 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     final var completedUserTasks = new ConcurrentHashMap<String, LongAdder>();
     try (final var client =
         ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
-      final var userTaskCompletions = UserTaskCompletions.from(config, resourceAnalysis);
+      final var userTaskCompletions =
+          completeInstances == 0
+              ? List.<UserTaskCompletion>of()
+              : UserTaskCompletions.from(config, resourceAnalysis);
       completeProcessInstances(
           client,
           resourceAnalysis,
