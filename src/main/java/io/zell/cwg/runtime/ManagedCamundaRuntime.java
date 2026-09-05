@@ -81,7 +81,7 @@ public final class ManagedCamundaRuntime
     configureCamundaSecondaryStorage(
         container.withNetwork(network),
         secondaryStorage.effectiveType(),
-        "http://" + alias + ":9200");
+        "http://%s:%d".formatted(alias, SECONDARY_STORAGE_PORT));
     return new ManagedCamundaRuntime(container, secondaryStorageContainer, network, secondaryStorage);
   }
 

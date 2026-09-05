@@ -106,6 +106,9 @@ public final class SecondaryStorageReporter {
     long documents = 0;
     long storeSizeBytes = 0;
     for (final var index : indexes) {
+      if (index.path("index").asText("").startsWith(".")) {
+        continue;
+      }
       indexCount++;
       documents += longField(index, "docs.count");
       storeSizeBytes += longField(index, "store.size");

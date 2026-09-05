@@ -26,6 +26,7 @@ final class SecondaryStorageReporterTest {
         startIndexServer(
             """
             [
+              {"index":".plugins-ml-config","docs.count":"100","store.size":"1000"},
               {"index":"operate-list-view","docs.count":"7","store.size":"42"},
               {"index":"closed-index","docs.count":"-","store.size":"-"}
             ]
