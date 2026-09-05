@@ -78,3 +78,12 @@ workload:
 output:
   path: build/camunda-workload-generator
 ```
+
+## Dependency updates
+
+Renovate is configured in `renovate.json` for Maven dependencies and GitHub
+Actions updates. Non-major updates can merge automatically after CI passes.
+Major updates stay manual.
+
+The repository uses Renovate-managed automerge instead of platform automerge so
+updates wait for status checks before merging.
