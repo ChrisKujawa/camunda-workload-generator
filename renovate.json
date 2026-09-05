@@ -1,0 +1,64 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "enabledManagers": [
+    "maven",
+    "github-actions"
+  ],
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "bump",
+  "ignoreTests": false,
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "description": "Automerge non-major dependency updates after CI passes.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Keep major dependency updates manual.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Group Maven test dependency updates.",
+      "matchManagers": [
+        "maven"
+      ],
+      "matchDepTypes": [
+        "test"
+      ],
+      "groupName": "Maven test dependencies"
+    },
+    {
+      "description": "Group GitHub Actions updates.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}
