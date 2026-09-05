@@ -196,7 +196,7 @@ public final class BpmnAnalyzer {
               new CallActivity(
                   callActivity.getAttribute("id"),
                   callActivity.getAttribute("name"),
-                  calledProcessId,
+                  calledProcessId == null ? "" : calledProcessId,
                   processId(callActivity)));
         });
     return callActivities;

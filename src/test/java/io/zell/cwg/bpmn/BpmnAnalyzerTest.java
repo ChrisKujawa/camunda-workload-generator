@@ -124,6 +124,7 @@ final class BpmnAnalyzerTest {
             <zeebe:calledDecision decisionId="orphanDecision" />
           </extensionElements>
           <messageEventDefinition messageRef="orphan-message" />
+          <callActivity id="orphan_call" />
           <process id="invoice">
             <startEvent id="start" />
           </process>
@@ -143,6 +144,9 @@ final class BpmnAnalyzerTest {
     assertThat(analysis.dmnReferences())
         .extracting(BpmnAnalysis.DmnReference::decisionId, BpmnAnalysis.DmnReference::processId)
         .containsExactly(tuple("orphanDecision", ""));
+    assertThat(analysis.callActivities())
+        .extracting(BpmnAnalysis.CallActivity::elementId, BpmnAnalysis.CallActivity::calledProcessId)
+        .containsExactly(tuple("orphan_call", ""));
   }
 
   @Test
