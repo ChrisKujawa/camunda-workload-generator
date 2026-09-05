@@ -112,11 +112,17 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       runtime.start();
       final var deployment =
           resourceDeployment.deploy(
-              runtime.gatewayAddress(), resourceAnalysis.scan().deployableResources());
+              runtime.gatewayAddress(),
+              runtime.restAddress(),
+              resourceAnalysis.scan().deployableResources());
       deployedResources = deployment.deployedResourceCount();
       workloadExecution =
           workloadExecutor.execute(
-              runtime.gatewayAddress(), config, resourceAnalysis, payloadVariables);
+              runtime.gatewayAddress(),
+              runtime.restAddress(),
+              config,
+              resourceAnalysis,
+              payloadVariables);
       secondaryStorageReport =
           secondaryStorageReporter.report(
               config.getSecondaryStorage(), secondaryStorageEndpoint(config, runtime));

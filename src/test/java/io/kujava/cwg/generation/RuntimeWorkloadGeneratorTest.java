@@ -82,12 +82,14 @@ final class RuntimeWorkloadGeneratorTest {
         new RuntimeWorkloadGenerator(
             new io.kujava.cwg.resources.WorkloadResourceAnalyzer(),
             ignored -> runtime,
-            (gatewayAddress, deployableResources) -> {
+            (gatewayAddress, restAddress, deployableResources) -> {
               assertThat(gatewayAddress).isEqualTo("localhost:26500");
+              assertThat(restAddress).isEqualTo("http://localhost:8080");
               deployableResources.forEach(resource -> deployedPaths.add(resource.relativePath()));
               return new DeploymentResult(deployableResources);
             },
-            (gatewayAddress, config, analysis, payloadVariables) -> {
+            (gatewayAddress, restAddress, config, analysis, payloadVariables) -> {
+              assertThat(restAddress).isEqualTo("http://localhost:8080");
               executedPayloads.add(payloadVariables);
               return new WorkloadExecution(
                   3,
@@ -178,8 +180,10 @@ final class RuntimeWorkloadGeneratorTest {
         new RuntimeWorkloadGenerator(
             new io.kujava.cwg.resources.WorkloadResourceAnalyzer(),
             ignored -> runtime,
-            (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
-            (gatewayAddress, config, analysis, payloadVariables) -> WorkloadExecution.skipped(),
+            (gatewayAddress, restAddress, deployableResources) ->
+                new DeploymentResult(deployableResources),
+            (gatewayAddress, restAddress, config, analysis, payloadVariables) ->
+                WorkloadExecution.skipped(),
             new io.kujava.cwg.workload.PayloadVariablesLoader(),
             new SecondaryStorageReporter(),
             new io.kujava.cwg.artifacts.ManifestWriter(),
@@ -221,8 +225,10 @@ final class RuntimeWorkloadGeneratorTest {
         new RuntimeWorkloadGenerator(
             new io.kujava.cwg.resources.WorkloadResourceAnalyzer(),
             ignored -> runtime,
-            (gatewayAddress, deployableResources) -> new DeploymentResult(deployableResources),
-            (gatewayAddress, config, analysis, payloadVariables) -> WorkloadExecution.skipped(),
+            (gatewayAddress, restAddress, deployableResources) ->
+                new DeploymentResult(deployableResources),
+            (gatewayAddress, restAddress, config, analysis, payloadVariables) ->
+                WorkloadExecution.skipped(),
             new io.kujava.cwg.workload.PayloadVariablesLoader(),
             new SecondaryStorageReporter(),
             new io.kujava.cwg.artifacts.ManifestWriter(),
@@ -264,10 +270,10 @@ final class RuntimeWorkloadGeneratorTest {
         new RuntimeWorkloadGenerator(
             new io.kujava.cwg.resources.WorkloadResourceAnalyzer(),
             ignored -> runtime,
-            (gatewayAddress, deployableResources) -> {
+            (gatewayAddress, restAddress, deployableResources) -> {
               throw new AssertionError("deployment must not run");
             },
-            (gatewayAddress, config, analysis, payloadVariables) -> {
+            (gatewayAddress, restAddress, config, analysis, payloadVariables) -> {
               throw new AssertionError("workload must not run");
             },
             new io.kujava.cwg.workload.PayloadVariablesLoader(),

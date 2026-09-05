@@ -166,6 +166,13 @@ public final class WorkloadConfig {
       errors.add(
           "workload.completeInstances must be less than or equal to workload.startInstances");
     }
+    if (workload.completeInstances() > 0
+        && !workload.userTasks().isEmpty()
+        && SecondaryStorageConfig.MODE_DISABLED.equals(secondaryStorage.mode())) {
+      errors.add(
+          "workload.userTasks requires secondaryStorage.mode managed or attached when completing"
+              + " process instances");
+    }
     requireNonBlank("output.path", output.path(), errors);
 
     if (!errors.isEmpty()) {

@@ -15,16 +15,18 @@
  */
 package io.kujava.cwg.runtime;
 
-public interface CamundaRuntime extends AutoCloseable {
+import io.camunda.client.CamundaClient;
+import java.net.URI;
 
-  void start();
+public final class CamundaClients {
 
-  String gatewayAddress();
+  private CamundaClients() {}
 
-  default String restAddress() {
-    return "http://localhost:8080";
+  public static CamundaClient create(final String gatewayAddress, final String restAddress) {
+    return CamundaClient.newClientBuilder()
+        .grpcAddress(URI.create("http://" + gatewayAddress))
+        .restAddress(URI.create(restAddress))
+        .preferRestOverGrpc(false)
+        .build();
   }
-
-  @Override
-  void close();
 }

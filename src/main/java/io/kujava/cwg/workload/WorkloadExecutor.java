@@ -24,6 +24,7 @@ public interface WorkloadExecutor {
 
   WorkloadExecution execute(
       String gatewayAddress,
+      String restAddress,
       WorkloadConfig config,
       WorkloadResourceAnalysis resourceAnalysis,
       Map<String, Object> payloadVariables);

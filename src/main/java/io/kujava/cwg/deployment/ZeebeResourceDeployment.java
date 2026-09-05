@@ -15,21 +15,21 @@
  */
 package io.kujava.cwg.deployment;
 
-import io.camunda.zeebe.client.ZeebeClient;
-import io.camunda.zeebe.client.api.command.DeployResourceCommandStep1.DeployResourceCommandStep2;
+import io.camunda.client.api.command.DeployResourceCommandStep1.DeployResourceCommandStep2;
 import io.kujava.cwg.resources.ResourceFile;
+import io.kujava.cwg.runtime.CamundaClients;
 import java.util.List;
 
 public final class ZeebeResourceDeployment implements ResourceDeployment {
 
   @Override
-  public DeploymentResult deploy(final String gatewayAddress, final List<ResourceFile> resources) {
+  public DeploymentResult deploy(
+      final String gatewayAddress, final String restAddress, final List<ResourceFile> resources) {
     if (resources.isEmpty()) {
       return new DeploymentResult(resources);
     }
 
-    try (final var client =
-        ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
+    try (final var client = CamundaClients.create(gatewayAddress, restAddress)) {
       DeployResourceCommandStep2 command = null;
       for (final var resource : resources) {
         if (command == null) {

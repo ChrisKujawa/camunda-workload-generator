@@ -15,17 +15,19 @@
  */
 package io.kujava.cwg.runtime;
 
-import io.camunda.zeebe.client.ZeebeClient;
 import io.kujava.cwg.artifacts.ZeebeDataArtifactWriter;
 import io.kujava.cwg.artifacts.ZeebeDataArtifacts;
 import io.kujava.cwg.config.WorkloadConfig;
 import io.kujava.cwg.config.WorkloadConfig.SecondaryStorageConfig;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Optional;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -35,12 +37,14 @@ public final class ManagedCamundaRuntime
     implements CamundaRuntime, ZeebeDataArtifactSource, SecondaryStorageRuntime {
 
   private static final int ZEEBE_GATEWAY_PORT = 26500;
+  private static final int REST_PORT = 8080;
   private static final int SECONDARY_STORAGE_PORT = 9200;
   private static final int CLEAN_STOP_TIMEOUT_SECONDS = 30;
   private static final String ZEEBE_DATA_DIRECTORY = "/usr/local/camunda/data";
   private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(4);
   private static final Duration TOPOLOGY_REQUEST_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration TOPOLOGY_RETRY_DELAY = Duration.ofSeconds(1);
+  private static final int STARTUP_LOG_LINES = 120;
 
   private final GenericContainer<?> container;
   private final GenericContainer<?> secondaryStorageContainer;
@@ -112,7 +116,12 @@ public final class ManagedCamundaRuntime
 
   @Override
   public String gatewayAddress() {
-    return "%s:%d".formatted(container.getHost(), container.getMappedPort(ZEEBE_GATEWAY_PORT));
+    return "%s:%d".formatted(mappedHost(container), container.getMappedPort(ZEEBE_GATEWAY_PORT));
+  }
+
+  @Override
+  public String restAddress() {
+    return "http://%s:%d".formatted(mappedHost(container), container.getMappedPort(REST_PORT));
   }
 
   @Override
@@ -122,7 +131,7 @@ public final class ManagedCamundaRuntime
         outputDirectory,
         targetDirectory -> {
           stopContainerForDataCopy();
-          container.copyFileFromContainer(ZEEBE_DATA_DIRECTORY, targetDirectory.toString());
+          copyZeebeDataDirectory(targetDirectory);
         },
         zip);
   }
@@ -145,7 +154,7 @@ public final class ManagedCamundaRuntime
             secondaryStorageConfig.effectiveType(),
             "http://%s:%d"
                 .formatted(
-                    secondaryStorageContainer.getHost(),
+                    mappedHost(secondaryStorageContainer),
                     secondaryStorageContainer.getMappedPort(SECONDARY_STORAGE_PORT))));
   }
 
@@ -179,8 +188,13 @@ public final class ManagedCamundaRuntime
 
   private static GenericContainer<?> camundaContainer(final String image) {
     return new GenericContainer<>(DockerImageName.parse(image))
-        .withExposedPorts(ZEEBE_GATEWAY_PORT)
+        .withExposedPorts(ZEEBE_GATEWAY_PORT, REST_PORT)
         .withEnv("SPRING_PROFILES_ACTIVE", "broker,standalone")
+        .withEnv("ZEEBE_BROKER_GATEWAY_ENABLE", "true")
+        .withEnv("ZEEBE_BROKER_NETWORK_HOST", "0.0.0.0")
+        .withEnv("ZEEBE_BROKER_NETWORK_ADVERTISEDHOST", "127.0.0.1")
+        .withEnv("CAMUNDA_SECURITY_AUTHENTICATION_UNPROTECTEDAPI", "true")
+        .withEnv("CAMUNDA_SECURITY_AUTHORIZATIONS_ENABLED", "false")
         .withEnv("ZEEBE_BROKER_EXPERIMENTAL_ROCKSDB_DISABLEWAL", "false")
         .waitingFor(Wait.forListeningPort().withStartupTimeout(STARTUP_TIMEOUT));
   }
@@ -202,6 +216,14 @@ public final class ManagedCamundaRuntime
         .withEnv("OPENSEARCH_JAVA_OPTS", "-Xms512m -Xmx512m");
   }
 
+  static String mappedHost(final GenericContainer<?> container) {
+    return mappedHost(container.getHost());
+  }
+
+  static String mappedHost(final String host) {
+    return "localhost".equals(host) ? "127.0.0.1" : host;
+  }
+
   private static void configureCamundaSecondaryStorage(
       final GenericContainer<?> container, final String type, final String url) {
     final var typeKey = type.toUpperCase(Locale.ROOT);
@@ -219,8 +241,7 @@ public final class ManagedCamundaRuntime
     RuntimeException lastFailure = null;
 
     while (Instant.now().isBefore(deadline)) {
-      try (final var client =
-          ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress()).usePlaintext().build()) {
+      try (final var client = CamundaClients.create(gatewayAddress(), restAddress())) {
         client.newTopologyRequest().requestTimeout(TOPOLOGY_REQUEST_TIMEOUT).send().join();
         return;
       } catch (final RuntimeException e) {
@@ -230,8 +251,19 @@ public final class ManagedCamundaRuntime
     }
 
     throw new IllegalStateException(
-        "Timed out waiting for Zeebe gateway topology at %s".formatted(gatewayAddress()),
+        "Timed out waiting for Zeebe gateway topology at %s%nCamunda container logs:%n%s"
+            .formatted(gatewayAddress(), tail(container.getLogs(), STARTUP_LOG_LINES)),
         lastFailure);
+  }
+
+  static String tail(final String text, final int lines) {
+    final var split = text == null ? new String[0] : text.stripTrailing().split("\\R");
+    if (split.length == 0) {
+      return "<no logs>";
+    }
+    final var start = Math.max(0, split.length - lines);
+    return String.join(
+        System.lineSeparator(), java.util.Arrays.copyOfRange(split, start, split.length));
   }
 
   private static void sleepBeforeRetry() {
@@ -251,6 +283,52 @@ public final class ManagedCamundaRuntime
           .withTimeout(CLEAN_STOP_TIMEOUT_SECONDS)
           .exec();
     }
+  }
+
+  private void copyZeebeDataDirectory(final Path targetDirectory) throws IOException {
+    final var normalizedTargetDirectory = targetDirectory.toAbsolutePath().normalize();
+    try (final var archive =
+            container
+                .getDockerClient()
+                .copyArchiveFromContainerCmd(container.getContainerId(), ZEEBE_DATA_DIRECTORY)
+                .exec();
+        final var tar = new TarArchiveInputStream(archive)) {
+      TarArchiveEntry entry;
+      while ((entry = tar.getNextTarEntry()) != null) {
+        final var relativePath = stripTopLevelDirectory(entry.getName());
+        if (relativePath.toString().isEmpty()) {
+          continue;
+        }
+
+        final var target = normalizedTargetDirectory.resolve(relativePath).normalize();
+        if (!target.startsWith(normalizedTargetDirectory)) {
+          throw new IOException(
+              "Refusing to extract Zeebe data outside target directory: " + entry.getName());
+        }
+
+        if (entry.isDirectory()) {
+          Files.createDirectories(target);
+        } else if (entry.isFile()) {
+          final var parent = target.getParent();
+          if (parent == null) {
+            throw new IOException(
+                "Zeebe data archive entry has no parent directory: " + entry.getName());
+          }
+          Files.createDirectories(parent);
+          Files.copy(tar, target);
+        } else {
+          throw new IOException("Unsupported Zeebe data archive entry: " + entry.getName());
+        }
+      }
+    }
+  }
+
+  static Path stripTopLevelDirectory(final String entryName) {
+    final var entryPath = Path.of(entryName);
+    if (entryPath.getNameCount() <= 1) {
+      return Path.of("");
+    }
+    return entryPath.subpath(1, entryPath.getNameCount()).normalize();
   }
 
   @FunctionalInterface

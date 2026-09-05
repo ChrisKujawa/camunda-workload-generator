@@ -161,6 +161,30 @@ final class ConfigLoaderTest {
   }
 
   @Test
+  void shouldRejectUserTaskCompletionWithoutSecondaryStorage() throws Exception {
+    // given
+    final var configFile = tempDir.resolve("workload.yaml");
+    Files.writeString(
+        configFile,
+        """
+        workload:
+          startInstances: 1
+          completeInstances: 1
+          userTasks:
+            - name: Approve invoice
+              variables:
+                approved: true
+        """);
+
+    // when / then
+    assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining(
+            "workload.userTasks requires secondaryStorage.mode managed or attached when completing"
+                + " process instances");
+  }
+
+  @Test
   void shouldRejectInvalidSecondaryStorageConfig() throws Exception {
     // given
     final var configFile = tempDir.resolve("workload.yaml");

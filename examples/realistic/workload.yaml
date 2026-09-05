@@ -6,11 +6,6 @@ resources:
   payload: payload.json
 workload:
   startInstances: 5
-  completeInstances: 3
-  userTasks:
-    - name: Decide on fraud case
-      variables:
-        isRefund: true
-        analystDecision: approve_refund
+  completeInstances: 0
 output:
   path: build/examples/realistic

@@ -40,6 +40,7 @@ public final class ZeebeDataArtifactWriter {
 
     deleteIfExists(zeebeDataDirectory);
     Files.deleteIfExists(zeebeDataZip);
+    Files.createDirectories(zeebeDataDirectory);
 
     copier.copyTo(zeebeDataDirectory);
     if (!Files.isDirectory(zeebeDataDirectory)) {

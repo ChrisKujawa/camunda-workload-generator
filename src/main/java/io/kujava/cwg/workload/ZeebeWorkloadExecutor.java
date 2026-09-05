@@ -15,13 +15,15 @@
  */
 package io.kujava.cwg.workload;
 
-import io.camunda.zeebe.client.ZeebeClient;
-import io.camunda.zeebe.client.api.ZeebeFuture;
-import io.camunda.zeebe.client.api.response.ProcessInstanceResult;
-import io.camunda.zeebe.client.api.worker.JobWorker;
+import io.camunda.client.CamundaClient;
+import io.camunda.client.api.CamundaFuture;
+import io.camunda.client.api.response.ProcessInstanceResult;
+import io.camunda.client.api.search.enums.UserTaskState;
+import io.camunda.client.api.worker.JobWorker;
 import io.kujava.cwg.config.ConfigException;
 import io.kujava.cwg.config.WorkloadConfig;
 import io.kujava.cwg.resources.WorkloadResourceAnalysis;
+import io.kujava.cwg.runtime.CamundaClients;
 import io.kujava.cwg.workload.UserTaskCompletions.UserTaskCompletion;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -39,6 +41,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   @Override
   public WorkloadExecution execute(
       final String gatewayAddress,
+      final String restAddress,
       final WorkloadConfig config,
       final WorkloadResourceAnalysis resourceAnalysis,
       final Map<String, Object> payloadVariables) {
@@ -58,8 +61,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     final var appliedWorkerOutputs = new ConcurrentHashMap<String, LongAdder>();
     final var publishedMessages = new ConcurrentHashMap<String, LongAdder>();
     final var completedUserTasks = new ConcurrentHashMap<String, LongAdder>();
-    try (final var client =
-        ZeebeClient.newClientBuilder().gatewayAddress(gatewayAddress).usePlaintext().build()) {
+    try (final var client = CamundaClients.create(gatewayAddress, restAddress)) {
       final var userTaskCompletions =
           completeInstances == 0
               ? List.<UserTaskCompletion>of()
@@ -93,7 +95,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   }
 
   private static void completeProcessInstances(
-      final ZeebeClient client,
+      final CamundaClient client,
       final WorkloadResourceAnalysis resourceAnalysis,
       final String rootProcessId,
       final int completeInstances,
@@ -145,8 +147,8 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   }
 
   private static void completeUserTasksUntilProcessCompletes(
-      final ZeebeClient client,
-      final ZeebeFuture<ProcessInstanceResult> result,
+      final CamundaClient client,
+      final CamundaFuture<ProcessInstanceResult> result,
       final List<UserTaskCompletion> userTaskCompletions,
       final ConcurrentHashMap<String, LongAdder> completedUserTasks) {
     if (userTaskCompletions.isEmpty()) {
@@ -165,15 +167,17 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   }
 
   private static int completeAvailableUserTasks(
-      final ZeebeClient client,
+      final CamundaClient client,
       final List<UserTaskCompletion> userTaskCompletions,
       final ConcurrentHashMap<String, LongAdder> completedUserTasks) {
     var completed = 0;
     for (final var userTaskCompletion : userTaskCompletions) {
       final var userTasks =
           client
-              .newUserTaskQuery()
-              .filter(filter -> filter.state("CREATED").elementId(userTaskCompletion.elementId()))
+              .newUserTaskSearchRequest()
+              .filter(
+                  filter ->
+                      filter.state(UserTaskState.CREATED).elementId(userTaskCompletion.elementId()))
               .requestTimeout(COMMAND_TIMEOUT)
               .send()
               .join()
@@ -181,13 +185,13 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
       for (final var userTask : userTasks) {
         if (userTaskCompletion.variables().isEmpty()) {
           client
-              .newUserTaskCompleteCommand(userTask.getKey())
+              .newCompleteUserTaskCommand(userTask.getUserTaskKey())
               .requestTimeout(COMMAND_TIMEOUT)
               .send()
               .join();
         } else {
           client
-              .newUserTaskCompleteCommand(userTask.getKey())
+              .newCompleteUserTaskCommand(userTask.getUserTaskKey())
               .variables(userTaskCompletion.variables())
               .requestTimeout(COMMAND_TIMEOUT)
               .send()
@@ -212,7 +216,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   }
 
   private static void publishMessages(
-      final ZeebeClient client,
+      final CamundaClient client,
       final List<WorkloadConfig.MessageConfig> messages,
       final Map<String, Object> payloadVariables,
       final ConcurrentHashMap<String, LongAdder> publishedMessages) {
@@ -243,7 +247,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
   }
 
   private static void startActiveProcessInstances(
-      final ZeebeClient client,
+      final CamundaClient client,
       final String rootProcessId,
       final int activeInstances,
       final Map<String, Object> payloadVariables) {
@@ -279,7 +283,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
 
   private static final class GenericWorkers implements AutoCloseable {
 
-    private final ZeebeClient client;
+    private final CamundaClient client;
     private final WorkloadResourceAnalysis resourceAnalysis;
     private final Map<String, Map<String, Object>> workerOutputs;
     private final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs;
@@ -287,7 +291,7 @@ public final class ZeebeWorkloadExecutor implements WorkloadExecutor {
     private final Map<String, JobWorker> workers = new LinkedHashMap<>();
 
     private GenericWorkers(
-        final ZeebeClient client,
+        final CamundaClient client,
         final WorkloadResourceAnalysis resourceAnalysis,
         final Map<String, Map<String, Object>> workerOutputs,
         final ConcurrentHashMap<String, LongAdder> appliedWorkerOutputs,

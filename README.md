@@ -68,6 +68,15 @@ when Testcontainers cannot find a usable Docker environment. The
 `Docker integration` GitHub Actions workflow runs the same Docker-tagged test
 group manually.
 
+On Docker Engine versions whose minimum API is newer than the Docker Java
+default, pass the API version explicitly:
+
+```bash
+java -Dapi.version="$(docker version --format '{{.Client.APIVersion}}')" \
+  -jar target/camunda-workload-generator-*.jar generate \
+  --config examples/realistic/workload.yaml
+```
+
 The CLI supports configuration validation, effective configuration printing,
 resource analysis, managed runtime deployment, and basic workload execution:
 
@@ -218,8 +227,10 @@ static `correlationKey` or a simple `correlationKeyExpression` path resolved
 from the start payload, and `report.json` records published message counts.
 `workload.userTasks` completes explicitly configured user tasks by BPMN element
 ID or task name with optional variables, and `report.json` records completed
-user-task counts. Dynamic job types, incidents, and connector behavior are
-handled by later slices.
+user-task counts. Camunda 8.8 user-task search requires secondary storage, so
+configs that complete user tasks must set `secondaryStorage.mode` to `managed`
+or `attached`. Dynamic job types, incidents, and connector behavior are handled
+by later slices.
 
 ## Generated artifact layout
 
@@ -262,7 +273,7 @@ metadata under `build/small-fixture`.
 ### Config-driven realistic workload
 
 Use the committed realistic example when the scenario needs BPMN, child BPMN,
-DMN, form, payload, and user-task completion together:
+DMN, form, payload, and active Zeebe data without secondary storage:
 
 ```bash
 mvn package
@@ -275,8 +286,9 @@ java -jar target/camunda-workload-generator-*.jar generate \
   --config examples/realistic/workload.yaml
 ```
 
-The example README documents its source attribution, copied resources, and BPMN
-simplifications.
+The example starts active process instances and leaves secondary storage
+disabled so local fixture generation stays small. The example README documents
+its source attribution, copied resources, and BPMN simplifications.
 
 ### Investigation run with ingestion reporting
 

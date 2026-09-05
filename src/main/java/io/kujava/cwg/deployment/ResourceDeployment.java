@@ -21,5 +21,5 @@ import java.util.List;
 @FunctionalInterface
 public interface ResourceDeployment {
 
-  DeploymentResult deploy(String gatewayAddress, List<ResourceFile> resources);
+  DeploymentResult deploy(String gatewayAddress, String restAddress, List<ResourceFile> resources);
 }
