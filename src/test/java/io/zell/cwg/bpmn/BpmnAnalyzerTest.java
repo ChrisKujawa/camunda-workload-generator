@@ -111,6 +111,41 @@ final class BpmnAnalyzerTest {
   }
 
   @Test
+  void shouldHandleMetadataWithoutOwningProcess() throws Exception {
+    // given
+    final var bpmnFile = tempDir.resolve("metadata-without-process.bpmn");
+    Files.writeString(
+        bpmnFile,
+        """
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
+          <extensionElements>
+            <zeebe:taskDefinition type="orphan-worker" />
+            <zeebe:calledDecision decisionId="orphanDecision" />
+          </extensionElements>
+          <messageEventDefinition messageRef="orphan-message" />
+          <process id="invoice">
+            <startEvent id="start" />
+          </process>
+        </definitions>
+        """);
+
+    // when
+    final var analysis = new BpmnAnalyzer().analyze(bpmnFile);
+
+    // then
+    assertThat(analysis.staticJobTypes())
+        .extracting(BpmnAnalysis.StaticJobType::type, BpmnAnalysis.StaticJobType::processId)
+        .containsExactly(tuple("orphan-worker", ""));
+    assertThat(analysis.messageReferences())
+        .extracting(BpmnAnalysis.MessageReference::messageRef, BpmnAnalysis.MessageReference::processId)
+        .containsExactly(tuple("orphan-message", ""));
+    assertThat(analysis.dmnReferences())
+        .extracting(BpmnAnalysis.DmnReference::decisionId, BpmnAnalysis.DmnReference::processId)
+        .containsExactly(tuple("orphanDecision", ""));
+  }
+
+  @Test
   void shouldEstimateStaticHappyPathFlowNodeInstances() throws Exception {
     // given
     final var bpmnFile = tempDir.resolve("happy-path.bpmn");

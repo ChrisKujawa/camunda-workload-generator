@@ -158,7 +158,7 @@ public final class BpmnAnalyzer {
                     owner == null ? "" : owner.getAttribute("id"),
                     owner == null ? "" : owner.getAttribute("name"),
                     type,
-                    processId(owner)));
+                    owner == null ? "" : processId(owner)));
           }
         });
     return jobTypes;
@@ -213,7 +213,9 @@ public final class BpmnAnalyzer {
             final var owner = ownerElement(messageEventDefinition);
             messageReferences.add(
                 new MessageReference(
-                    owner == null ? "" : owner.getAttribute("id"), messageRef, processId(owner)));
+                    owner == null ? "" : owner.getAttribute("id"),
+                    messageRef,
+                    owner == null ? "" : processId(owner)));
           }
         });
     return messageReferences;
@@ -230,7 +232,9 @@ public final class BpmnAnalyzer {
             final var owner = ownerElement(calledDecision);
             dmnReferences.add(
                 new DmnReference(
-                    owner == null ? "" : owner.getAttribute("id"), decisionId, processId(owner)));
+                    owner == null ? "" : owner.getAttribute("id"),
+                    decisionId,
+                    owner == null ? "" : processId(owner)));
           }
         });
     return dmnReferences;
