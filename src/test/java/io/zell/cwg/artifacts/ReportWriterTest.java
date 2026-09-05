@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.zell.cwg.artifacts.WorkloadReport.RunSummary;
 import io.zell.cwg.artifacts.WorkloadReport.SecondaryStorageReport;
+import io.zell.cwg.artifacts.WorkloadReport.ZeebeDataReport;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +33,7 @@ final class ReportWriterTest {
             Map.of("charge-card", 4L),
             Map.of("payment-received", 4L),
             Map.of("approve_invoice", 4L),
+            new ZeebeDataReport("zeebe-data/", "zeebe-data.zip", 3, 128),
             SecondaryStorageReport.skipped());
 
     // when
@@ -47,6 +49,10 @@ final class ReportWriterTest {
     assertThat(json.get("appliedWorkerOutputs").get("charge-card").asLong()).isEqualTo(4);
     assertThat(json.get("publishedMessages").get("payment-received").asLong()).isEqualTo(4);
     assertThat(json.get("completedUserTasks").get("approve_invoice").asLong()).isEqualTo(4);
+    assertThat(json.get("zeebeData").get("directory").asText()).isEqualTo("zeebe-data/");
+    assertThat(json.get("zeebeData").get("zip").asText()).isEqualTo("zeebe-data.zip");
+    assertThat(json.get("zeebeData").get("files").asLong()).isEqualTo(3);
+    assertThat(json.get("zeebeData").get("bytes").asLong()).isEqualTo(128);
     assertThat(json.get("secondaryStorage").get("status").asText()).isEqualTo("skipped");
   }
 }

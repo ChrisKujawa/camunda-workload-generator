@@ -38,8 +38,8 @@ repository should avoid depending on ZDB internals.
 
 The CLI, config foundation, resource scanning, static BPMN analysis,
 manifest/report artifact models, managed runtime resource deployment, and
-basic workload execution exist. Zeebe data export and secondary-storage
-ingestion are planned follow-up slices.
+basic workload execution exist. Zeebe data artifact output is supported for the
+managed runtime. Secondary-storage ingestion is a planned follow-up slice.
 
 ## Development
 
@@ -101,6 +101,7 @@ workload:
         approved: true
 output:
   path: build/camunda-workload-generator
+  zipZeebeData: false
 ```
 
 ## Dependency updates
@@ -141,18 +142,23 @@ directory:
 - `report.json` describes what happened during a run: started/completed/active
   instance counts, incidents, detected job types, completed job counts, and
   secondary-storage ingestion status.
+- `zeebe-data/` contains the copied broker data from the managed runtime.
+- `zeebe-data.zip` is written when `output.zipZeebeData` is `true`.
 
 These metadata files can be written and tested without Docker. Runtime-backed
 commands fill resource metadata after deploying the configured deployable files.
 Workload execution fills started/completed/active instance counts and completed
-job counts.
+job counts. Runtime-backed generation writes Zeebe data artifact paths and basic
+file/byte counts.
 
 ## Managed runtime
 
 `generate` starts the configured Camunda image with Testcontainers, disables
 secondary storage, runs the broker profile, deploys scanned BPMN/DMN/form files,
 shuts the runtime down cleanly, and writes `manifest.json` plus `report.json` to
-the configured output directory.
+the configured output directory. During shutdown, the generator copies the
+broker data directory to `zeebe-data/`; set `output.zipZeebeData: true` to also
+write `zeebe-data.zip`.
 
 After deployment, `generate` opens generic workers for statically detected
 Zeebe job types, completes `workload.completeInstances` root process instances

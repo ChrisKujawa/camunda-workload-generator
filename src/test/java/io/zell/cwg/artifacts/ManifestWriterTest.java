@@ -66,6 +66,7 @@ final class ManifestWriterTest {
         .isEqualTo("charge-card");
     assertThat(json.get("resources").get("userTasks").get(0).get("elementId").asText())
         .isEqualTo("approve_invoice");
+    assertThat(json.get("artifacts").get("zeebeData").asText()).isEqualTo("zeebe-data/");
     assertThat(json.get("artifacts").get("manifest").asText()).isEqualTo("manifest.json");
   }
 }

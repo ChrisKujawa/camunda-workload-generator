@@ -1,24 +1,37 @@
 package io.zell.cwg.runtime;
 
 import io.camunda.zeebe.client.ZeebeClient;
+import io.zell.cwg.artifacts.ZeebeDataArtifactWriter;
+import io.zell.cwg.artifacts.ZeebeDataArtifacts;
 import io.zell.cwg.config.WorkloadConfig;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
-public final class ManagedCamundaRuntime implements CamundaRuntime {
+public final class ManagedCamundaRuntime implements CamundaRuntime, ZeebeDataArtifactSource {
 
   private static final int ZEEBE_GATEWAY_PORT = 26500;
+  private static final int CLEAN_STOP_TIMEOUT_SECONDS = 30;
+  private static final String ZEEBE_DATA_DIRECTORY = "/usr/local/camunda/data";
   private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(4);
   private static final Duration TOPOLOGY_REQUEST_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration TOPOLOGY_RETRY_DELAY = Duration.ofSeconds(1);
 
   private final GenericContainer<?> container;
+  private final ZeebeDataArtifactWriter dataArtifactWriter;
 
   private ManagedCamundaRuntime(final GenericContainer<?> container) {
+    this(container, new ZeebeDataArtifactWriter());
+  }
+
+  private ManagedCamundaRuntime(
+      final GenericContainer<?> container, final ZeebeDataArtifactWriter dataArtifactWriter) {
     this.container = container;
+    this.dataArtifactWriter = dataArtifactWriter;
   }
 
   public static ManagedCamundaRuntime from(final WorkloadConfig.RuntimeConfig config) {
@@ -41,6 +54,18 @@ public final class ManagedCamundaRuntime implements CamundaRuntime {
   @Override
   public String gatewayAddress() {
     return "%s:%d".formatted(container.getHost(), container.getMappedPort(ZEEBE_GATEWAY_PORT));
+  }
+
+  @Override
+  public ZeebeDataArtifacts writeZeebeData(final Path outputDirectory, final boolean zip)
+      throws IOException {
+    return dataArtifactWriter.write(
+        outputDirectory,
+        targetDirectory -> {
+          stopContainerForDataCopy();
+          container.copyFileFromContainer(ZEEBE_DATA_DIRECTORY, targetDirectory.toString());
+        },
+        zip);
   }
 
   @Override
@@ -81,6 +106,16 @@ public final class ManagedCamundaRuntime implements CamundaRuntime {
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while waiting for Zeebe gateway readiness", e);
+    }
+  }
+
+  private void stopContainerForDataCopy() {
+    if (container.isRunning()) {
+      container
+          .getDockerClient()
+          .stopContainerCmd(container.getContainerId())
+          .withTimeout(CLEAN_STOP_TIMEOUT_SECONDS)
+          .exec();
     }
   }
 }

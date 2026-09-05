@@ -2,10 +2,13 @@ package io.zell.cwg.generation;
 
 import io.zell.cwg.artifacts.ManifestWriter;
 import io.zell.cwg.artifacts.ReportWriter;
+import io.zell.cwg.artifacts.WorkloadManifest.ArtifactPaths;
 import io.zell.cwg.artifacts.WorkloadManifest;
 import io.zell.cwg.artifacts.WorkloadReport;
 import io.zell.cwg.artifacts.WorkloadReport.RunSummary;
 import io.zell.cwg.artifacts.WorkloadReport.SecondaryStorageReport;
+import io.zell.cwg.artifacts.WorkloadReport.ZeebeDataReport;
+import io.zell.cwg.artifacts.ZeebeDataArtifacts;
 import io.zell.cwg.config.ConfigException;
 import io.zell.cwg.config.WorkloadConfig;
 import io.zell.cwg.deployment.ResourceDeployment;
@@ -14,6 +17,7 @@ import io.zell.cwg.resources.WorkloadResourceAnalysis;
 import io.zell.cwg.resources.WorkloadResourceAnalyzer;
 import io.zell.cwg.runtime.CamundaRuntimeFactory;
 import io.zell.cwg.runtime.ManagedCamundaRuntime;
+import io.zell.cwg.runtime.ZeebeDataArtifactSource;
 import io.zell.cwg.workload.PayloadVariablesLoader;
 import io.zell.cwg.workload.WorkloadExecution;
 import io.zell.cwg.workload.WorkloadExecutor;
@@ -78,7 +82,9 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
 
     final int deployedResources;
     final WorkloadExecution workloadExecution;
+    final ZeebeDataArtifacts zeebeDataArtifacts;
     try (final var runtime = runtimeFactory.create(config.getRuntime())) {
+      final var zeebeDataArtifactSource = zeebeDataArtifactSource(runtime);
       runtime.start();
       final var deployment =
           resourceDeployment.deploy(
@@ -87,15 +93,21 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
       workloadExecution =
           workloadExecutor.execute(
               runtime.gatewayAddress(), config, resourceAnalysis, payloadVariables);
+      zeebeDataArtifacts =
+          zeebeDataArtifactSource.writeZeebeData(
+              outputDirectory, config.getOutput().zipZeebeData());
     }
 
     final var generatedAt = Instant.now(clock).toString();
     final var manifestPath =
         manifestWriter.write(
-            outputDirectory, WorkloadManifest.from(config, resourceAnalysis, generatedAt));
+            outputDirectory,
+            WorkloadManifest.from(
+                config, resourceAnalysis, generatedAt, ArtifactPaths.from(zeebeDataArtifacts)));
     final var reportPath =
         reportWriter.write(
-            outputDirectory, reportFrom(resourceAnalysis, workloadExecution, generatedAt));
+            outputDirectory,
+            reportFrom(resourceAnalysis, workloadExecution, zeebeDataArtifacts, generatedAt));
 
     return new GenerationResult(deployedResources, manifestPath, reportPath);
   }
@@ -103,6 +115,7 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
   private static WorkloadReport reportFrom(
       final WorkloadResourceAnalysis resourceAnalysis,
       final WorkloadExecution workloadExecution,
+      final ZeebeDataArtifacts zeebeDataArtifacts,
       final String generatedAt) {
     return new WorkloadReport(
         "1",
@@ -120,6 +133,16 @@ public final class RuntimeWorkloadGenerator implements WorkloadGenerator {
         workloadExecution.appliedWorkerOutputs(),
         workloadExecution.publishedMessages(),
         workloadExecution.completedUserTasks(),
+        ZeebeDataReport.from(zeebeDataArtifacts),
         SecondaryStorageReport.skipped());
+  }
+
+  private static ZeebeDataArtifactSource zeebeDataArtifactSource(final AutoCloseable runtime) {
+    if (runtime instanceof ZeebeDataArtifactSource zeebeDataArtifactSource) {
+      return zeebeDataArtifactSource;
+    }
+    throw new ConfigException(
+        "Configured runtime does not support Zeebe data artifact output: "
+            + runtime.getClass().getName());
   }
 }

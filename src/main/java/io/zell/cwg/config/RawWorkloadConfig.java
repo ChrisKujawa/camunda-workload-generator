@@ -43,5 +43,6 @@ public final class RawWorkloadConfig {
 
   public static final class OutputConfig {
     public String path;
+    public Boolean zipZeebeData;
   }
 }

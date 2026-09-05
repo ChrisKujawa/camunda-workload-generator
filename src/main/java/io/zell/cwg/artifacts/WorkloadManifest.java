@@ -23,6 +23,14 @@ public record WorkloadManifest(
       final WorkloadConfig config,
       final WorkloadResourceAnalysis resourceAnalysis,
       final String generatedAt) {
+    return from(config, resourceAnalysis, generatedAt, ArtifactPaths.defaults());
+  }
+
+  public static WorkloadManifest from(
+      final WorkloadConfig config,
+      final WorkloadResourceAnalysis resourceAnalysis,
+      final String generatedAt,
+      final ArtifactPaths artifacts) {
     return new WorkloadManifest(
         "1",
         generatedAt,
@@ -32,7 +40,7 @@ public record WorkloadManifest(
             config.getWorkload().startInstances(),
             config.getWorkload().completeInstances()),
         ResourceMetadata.from(config, resourceAnalysis),
-        ArtifactPaths.defaults());
+        artifacts);
   }
 
   public record RuntimeMetadata(String image) {}
@@ -116,9 +124,19 @@ public record WorkloadManifest(
     }
   }
 
-  public record ArtifactPaths(String zeebeData, String manifest, String report, String secondaryStorage) {
+  public record ArtifactPaths(
+      String zeebeData, String zeebeDataZip, String manifest, String report, String secondaryStorage) {
     static ArtifactPaths defaults() {
-      return new ArtifactPaths("zeebe-data/", "manifest.json", "report.json", null);
+      return new ArtifactPaths("zeebe-data/", null, "manifest.json", "report.json", null);
+    }
+
+    public static ArtifactPaths from(final ZeebeDataArtifacts zeebeDataArtifacts) {
+      return new ArtifactPaths(
+          zeebeDataArtifacts.directory(),
+          zeebeDataArtifacts.zip(),
+          "manifest.json",
+          "report.json",
+          null);
     }
   }
 

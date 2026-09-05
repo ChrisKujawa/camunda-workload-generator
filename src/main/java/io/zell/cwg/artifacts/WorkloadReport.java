@@ -13,6 +13,7 @@ public record WorkloadReport(
     Map<String, Long> appliedWorkerOutputs,
     Map<String, Long> publishedMessages,
     Map<String, Long> completedUserTasks,
+    ZeebeDataReport zeebeData,
     SecondaryStorageReport secondaryStorage) {
 
   public WorkloadReport {
@@ -31,6 +32,13 @@ public record WorkloadReport(
   public record SecondaryStorageReport(boolean ingestionWaited, String type, String status) {
     public static SecondaryStorageReport skipped() {
       return new SecondaryStorageReport(false, null, "skipped");
+    }
+  }
+
+  public record ZeebeDataReport(String directory, String zip, long files, long bytes) {
+    public static ZeebeDataReport from(final ZeebeDataArtifacts artifacts) {
+      return new ZeebeDataReport(
+          artifacts.directory(), artifacts.zip(), artifacts.files(), artifacts.bytes());
     }
   }
 

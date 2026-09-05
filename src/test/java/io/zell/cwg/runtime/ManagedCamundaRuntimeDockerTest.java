@@ -60,17 +60,29 @@ final class ManagedCamundaRuntimeDockerTest {
                     new RuntimeConfig("camunda/camunda:8.8.0"),
                     new ResourcesConfig(resources.toString(), "invoice", null),
                     new WorkloadSettings(3, 2, Map.of(), List.of()),
-                    new OutputConfig(output.toString())));
+                    new OutputConfig(output.toString(), true)));
 
     // then
     assertThat(result.deployedResources()).isEqualTo(1);
     assertThat(result.manifestPath()).exists();
     assertThat(result.reportPath()).exists();
+    assertThat(output.resolve("zeebe-data")).isDirectory();
+    try (final var zeebeDataFiles = Files.walk(output.resolve("zeebe-data"))) {
+      assertThat(zeebeDataFiles.filter(Files::isRegularFile).count()).isPositive();
+    }
+    assertThat(output.resolve("zeebe-data.zip")).exists().isRegularFile();
+    final var manifest = new ObjectMapper().readTree(result.manifestPath().toFile());
     final var report = new ObjectMapper().readTree(result.reportPath().toFile());
+    assertThat(manifest.get("artifacts").get("zeebeData").asText()).isEqualTo("zeebe-data/");
+    assertThat(manifest.get("artifacts").get("zeebeDataZip").asText()).isEqualTo("zeebe-data.zip");
     assertThat(report.get("workload").get("startedInstances").asLong()).isEqualTo(3);
     assertThat(report.get("workload").get("completedInstances").asLong()).isEqualTo(2);
     assertThat(report.get("workload").get("activeInstances").asLong()).isEqualTo(1);
     assertThat(report.get("completedJobs").get("charge-card").asLong()).isEqualTo(2);
+    assertThat(report.get("zeebeData").get("directory").asText()).isEqualTo("zeebe-data/");
+    assertThat(report.get("zeebeData").get("zip").asText()).isEqualTo("zeebe-data.zip");
+    assertThat(report.get("zeebeData").get("files").asLong()).isPositive();
+    assertThat(report.get("zeebeData").get("bytes").asLong()).isPositive();
   }
 
   @Test
