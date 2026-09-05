@@ -168,6 +168,24 @@ final class ConfigLoaderTest {
   }
 
   @Test
+  void shouldRequireImageForManagedElasticsearch() throws Exception {
+    // given
+    final var configFile = tempDir.resolve("workload.yaml");
+    Files.writeString(
+        configFile,
+        """
+        secondaryStorage:
+          mode: managed
+          type: elasticsearch
+        """);
+
+    // when / then
+    assertThatThrownBy(() -> ConfigLoader.load(configFile, ConfigOverrides.none()))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("secondaryStorage.image must be set for managed Elasticsearch");
+  }
+
+  @Test
   void shouldRejectBlankPayloadPath() throws Exception {
     // given
     final var configFile = tempDir.resolve("workload.yaml");

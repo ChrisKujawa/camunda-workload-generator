@@ -158,7 +158,8 @@ file/byte counts.
 
 `secondaryStorage` is optional. The default `disabled` mode keeps managed
 runtime startup small and sets `report.json` secondary-storage status to
-`skipped`. `managed` mode starts an OpenSearch or Elasticsearch container and
+`skipped`. `managed` mode starts an OpenSearch container by default, or an
+Elasticsearch container when `type: elasticsearch` and `image` are set, and
 configures Camunda to use it. `attached` mode points Camunda at an existing
 endpoint:
 

@@ -130,7 +130,11 @@ public final class SecondaryStorageReporter {
     if (value == null || value.isBlank()) {
       return 0;
     }
-    return Long.parseLong(value);
+    try {
+      return Long.parseLong(value);
+    } catch (final NumberFormatException e) {
+      return 0;
+    }
   }
 
   private record StorageStats(long indexes, long documents, long storeSizeBytes) {}

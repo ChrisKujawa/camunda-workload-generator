@@ -20,7 +20,14 @@ final class SecondaryStorageReporterTest {
   @Test
   void shouldReportAttachedSecondaryStorageStats() throws Exception {
     // given
-    final var server = startIndexServer("[{\"index\":\"operate-list-view\",\"docs.count\":\"7\",\"store.size\":\"42\"}]");
+    final var server =
+        startIndexServer(
+            """
+            [
+              {"index":"operate-list-view","docs.count":"7","store.size":"42"},
+              {"index":"closed-index","docs.count":"-","store.size":"-"}
+            ]
+            """);
     final var endpoint =
         new SecondaryStorageEndpoint("attached", "opensearch", "http://localhost:" + server.getAddress().getPort());
     final var reporter =
@@ -41,7 +48,7 @@ final class SecondaryStorageReporterTest {
       assertThat(report.type()).isEqualTo("opensearch");
       assertThat(report.status()).isEqualTo("queried");
       assertThat(report.mode()).isEqualTo("attached");
-      assertThat(report.indexes()).isEqualTo(1);
+      assertThat(report.indexes()).isEqualTo(2);
       assertThat(report.documents()).isEqualTo(7);
       assertThat(report.storeSizeBytes()).isEqualTo(42);
     } finally {

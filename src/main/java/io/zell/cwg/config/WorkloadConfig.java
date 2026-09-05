@@ -262,9 +262,7 @@ public final class WorkloadConfig {
     public static final String MODE_ATTACHED = "attached";
     public static final String TYPE_OPENSEARCH = "opensearch";
     public static final String TYPE_ELASTICSEARCH = "elasticsearch";
-    public static final String DEFAULT_OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.19.5";
-    public static final String DEFAULT_ELASTICSEARCH_IMAGE =
-        "docker.elastic.co/elasticsearch/elasticsearch:8.19.16";
+    public static final String DEFAULT_OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.19.6";
     public static final String DEFAULT_WAIT_TIMEOUT = "PT2M";
 
     public static SecondaryStorageConfig disabled() {
@@ -280,9 +278,7 @@ public final class WorkloadConfig {
       if (image != null && !image.isBlank()) {
         return image;
       }
-      return TYPE_ELASTICSEARCH.equals(effectiveType())
-          ? DEFAULT_ELASTICSEARCH_IMAGE
-          : DEFAULT_OPENSEARCH_IMAGE;
+      return DEFAULT_OPENSEARCH_IMAGE;
     }
 
     public Duration waitTimeoutDuration() {
@@ -464,6 +460,11 @@ public final class WorkloadConfig {
       if (SecondaryStorageConfig.MODE_MANAGED.equals(secondaryStorage.mode())
           && secondaryStorage.image() != null) {
         requireNonBlank(prefix + ".image", secondaryStorage.image(), errors);
+      }
+      if (SecondaryStorageConfig.MODE_MANAGED.equals(secondaryStorage.mode())
+          && SecondaryStorageConfig.TYPE_ELASTICSEARCH.equals(type)
+          && (secondaryStorage.image() == null || secondaryStorage.image().isBlank())) {
+        errors.add(prefix + ".image must be set for managed Elasticsearch");
       }
     }
 
