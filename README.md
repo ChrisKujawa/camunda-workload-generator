@@ -37,8 +37,8 @@ repository should avoid depending on ZDB internals.
 ## Status
 
 The first milestone is a non-Docker foundation. The CLI, config foundation,
-resource scanning, and static BPMN analysis exist; manifest/report models are a
-planned follow-up slice.
+resource scanning, static BPMN analysis, and manifest/report artifact models
+exist. Runtime generation is a planned follow-up slice.
 
 ## Development
 
@@ -100,3 +100,17 @@ classifies deployable resources separately from payload/config inputs:
 BPMN analysis reports process IDs, static Zeebe job types, call activities,
 message references, and DMN decision references where they can be read from the
 model without executing a runtime.
+
+## Artifact metadata
+
+The generator writes metadata as stable JSON files in the configured output
+directory:
+
+- `manifest.json` describes how artifacts were produced: runtime image, workload
+  config, resource metadata, and artifact paths.
+- `report.json` describes what happened during a run: started/completed/active
+  instance counts, incidents, detected job types, completed job counts, and
+  secondary-storage ingestion status.
+
+These metadata files can be written and tested without Docker. Runtime-backed
+commands will fill them with actual run data in later slices.
