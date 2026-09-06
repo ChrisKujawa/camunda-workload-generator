@@ -61,7 +61,11 @@ public final class ResourceScanner {
   }
 
   private static ResourceType type(final Path path) {
-    final var fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+    final var pathFileName = path.getFileName();
+    if (pathFileName == null) {
+      return ResourceType.OTHER;
+    }
+    final var fileName = pathFileName.toString().toLowerCase(Locale.ROOT);
     if (fileName.endsWith(".bpmn")) {
       return ResourceType.BPMN;
     }
