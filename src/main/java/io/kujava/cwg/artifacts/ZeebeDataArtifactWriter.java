@@ -89,7 +89,7 @@ public final class ZeebeDataArtifactWriter {
 
   private static String fileName(final Path path) {
     final var fileName = path.getFileName();
-    return fileName == null ? path.toString() : fileName.toString();
+    return fileName == null ? "" : fileName.toString();
   }
 
   private static void deleteIfExists(final Path path) throws IOException {
