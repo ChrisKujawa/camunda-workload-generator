@@ -60,6 +60,19 @@ final class ResourceScannerTest {
         .containsExactly(tuple("notes/readme.txt", ResourceType.OTHER));
   }
 
+  @Test
+  void shouldTreatPathWithoutFileNameAsOtherType() throws Exception {
+    // given
+    final var method = ResourceScanner.class.getDeclaredMethod("type", Path.class);
+    method.setAccessible(true);
+
+    // when
+    final var type = (ResourceType) method.invoke(null, tempDir.getRoot());
+
+    // then
+    assertThat(type).isEqualTo(ResourceType.OTHER);
+  }
+
   private void write(final String path) throws Exception {
     final var file = tempDir.resolve(path);
     Files.createDirectories(file.getParent());
