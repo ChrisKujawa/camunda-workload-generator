@@ -53,7 +53,10 @@ public final class ZeebeDataArtifactWriter {
 
   private static Path zipDirectory(final Path sourceDirectory, final Path zipPath)
       throws IOException {
-    Files.createDirectories(zipPath.getParent());
+    final var parent = zipPath.getParent();
+    if (parent != null) {
+      Files.createDirectories(parent);
+    }
     try (final var zipOutput = new ZipOutputStream(Files.newOutputStream(zipPath))) {
       writeZipEntries(zipOutput, sourceDirectory, sourceDirectory);
     }
@@ -71,7 +74,7 @@ public final class ZeebeDataArtifactWriter {
       }
     }
 
-    entries.sort(Comparator.comparing(path -> path.getFileName().toString()));
+    entries.sort(Comparator.comparing(ZeebeDataArtifactWriter::fileName));
     for (final var entry : entries) {
       if (Files.isDirectory(entry)) {
         writeZipEntries(zipOutput, rootDirectory, entry);
@@ -82,6 +85,11 @@ public final class ZeebeDataArtifactWriter {
         zipOutput.closeEntry();
       }
     }
+  }
+
+  private static String fileName(final Path path) {
+    final var fileName = path.getFileName();
+    return fileName == null ? "" : fileName.toString();
   }
 
   private static void deleteIfExists(final Path path) throws IOException {
