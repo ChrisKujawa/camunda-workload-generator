@@ -15,17 +15,24 @@
  */
 package io.kujava.cwg.runtime;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kujava.cwg.artifacts.ZeebeDataArtifactWriter;
 import io.kujava.cwg.artifacts.ZeebeDataArtifacts;
 import io.kujava.cwg.config.WorkloadConfig;
 import io.kujava.cwg.config.WorkloadConfig.SecondaryStorageConfig;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.testcontainers.containers.GenericContainer;
@@ -38,13 +45,18 @@ public final class ManagedCamundaRuntime
 
   private static final int ZEEBE_GATEWAY_PORT = 26500;
   private static final int REST_PORT = 8080;
+  private static final int MANAGEMENT_PORT = 9600;
   private static final int SECONDARY_STORAGE_PORT = 9200;
   private static final int CLEAN_STOP_TIMEOUT_SECONDS = 30;
   private static final String ZEEBE_DATA_DIRECTORY = "/usr/local/camunda/data";
+  private static final int SNAPSHOT_PARTITION_ID = 1;
   private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(4);
   private static final Duration TOPOLOGY_REQUEST_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration TOPOLOGY_RETRY_DELAY = Duration.ofSeconds(1);
+  private static final Duration SNAPSHOT_TIMEOUT = Duration.ofSeconds(15);
+  private static final Duration SNAPSHOT_POLL_DELAY = Duration.ofMillis(500);
   private static final int STARTUP_LOG_LINES = 120;
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   private final GenericContainer<?> container;
   private final GenericContainer<?> secondaryStorageContainer;
@@ -130,6 +142,7 @@ public final class ManagedCamundaRuntime
     return dataArtifactWriter.write(
         outputDirectory,
         targetDirectory -> {
+          forceFreshSnapshot();
           stopContainerForDataCopy();
           copyZeebeDataDirectory(targetDirectory);
         },
@@ -188,7 +201,7 @@ public final class ManagedCamundaRuntime
 
   private static GenericContainer<?> camundaContainer(final String image) {
     return new GenericContainer<>(DockerImageName.parse(image))
-        .withExposedPorts(ZEEBE_GATEWAY_PORT, REST_PORT)
+        .withExposedPorts(ZEEBE_GATEWAY_PORT, REST_PORT, MANAGEMENT_PORT)
         .withEnv("SPRING_PROFILES_ACTIVE", "broker,standalone")
         .withEnv("ZEEBE_BROKER_GATEWAY_ENABLE", "true")
         .withEnv("ZEEBE_BROKER_NETWORK_HOST", "0.0.0.0")
@@ -273,6 +286,88 @@ public final class ManagedCamundaRuntime
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while waiting for Zeebe gateway readiness", e);
     }
+  }
+
+  /**
+   * A graceful container stop closes the broker's live RocksDB directory without necessarily
+   * flushing a fresh snapshot first, so a short-lived run can leave only the pre-workload snapshot
+   * on disk. Forces one via the broker's admin actuator endpoint and waits for it to catch up to
+   * the latest processed position before returning, so the copied data reflects the workload that
+   * just ran. Best-effort: a failure or timeout here doesn't fail the run, since `log`-based
+   * inspection of the copied data works from the raft log regardless.
+   */
+  private void forceFreshSnapshot() {
+    if (!container.isRunning()) {
+      return;
+    }
+    final var client = HttpClient.newHttpClient();
+    try {
+      final var targetPosition = fetchProcessedPosition(client);
+      if (targetPosition.isEmpty()) {
+        return;
+      }
+      triggerSnapshot(client);
+      awaitSnapshotCaughtUpTo(client, targetPosition.getAsLong());
+    } catch (final IOException | InterruptedException e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      // Best-effort: fall through to the existing stop-and-copy flow either way.
+    }
+  }
+
+  private OptionalLong fetchProcessedPosition(final HttpClient client)
+      throws IOException, InterruptedException {
+    final var status = fetchPartitionStatus(client);
+    return status
+        .map(node -> OptionalLong.of(node.path("processedPosition").asLong()))
+        .orElse(OptionalLong.empty());
+  }
+
+  private void triggerSnapshot(final HttpClient client) throws IOException, InterruptedException {
+    final var request =
+        HttpRequest.newBuilder()
+            .uri(managementUri("/actuator/partitions/takeSnapshot"))
+            .timeout(Duration.ofSeconds(10))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("{}"))
+            .build();
+    client.send(request, HttpResponse.BodyHandlers.discarding());
+  }
+
+  private void awaitSnapshotCaughtUpTo(final HttpClient client, final long targetPosition)
+      throws IOException, InterruptedException {
+    final var deadline = Instant.now().plus(SNAPSHOT_TIMEOUT);
+    while (Instant.now().isBefore(deadline)) {
+      final var status = fetchPartitionStatus(client);
+      final var caughtUpPosition =
+          status.map(node -> node.path("processedPositionInSnapshot").asLong(-1)).orElse(-1L);
+      if (caughtUpPosition >= targetPosition) {
+        return;
+      }
+      Thread.sleep(SNAPSHOT_POLL_DELAY.toMillis());
+    }
+  }
+
+  private Optional<JsonNode> fetchPartitionStatus(final HttpClient client)
+      throws IOException, InterruptedException {
+    final var request =
+        HttpRequest.newBuilder()
+            .uri(managementUri("/actuator/partitions/" + SNAPSHOT_PARTITION_ID))
+            .timeout(Duration.ofSeconds(5))
+            .GET()
+            .build();
+    final var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 300) {
+      return Optional.empty();
+    }
+    return Optional.of(JSON.readTree(response.body()));
+  }
+
+  private URI managementUri(final String path) {
+    return URI.create(
+        "http://%s:%d%s"
+            .formatted(mappedHost(container), container.getMappedPort(MANAGEMENT_PORT), path));
   }
 
   private void stopContainerForDataCopy() {
