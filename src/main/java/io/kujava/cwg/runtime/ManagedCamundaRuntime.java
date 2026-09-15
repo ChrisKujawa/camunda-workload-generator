@@ -295,6 +295,8 @@ public final class ManagedCamundaRuntime
    * the latest processed position before returning, so the copied data reflects the workload that
    * just ran. Best-effort: a failure or timeout here doesn't fail the run, since `log`-based
    * inspection of the copied data works from the raft log regardless.
+   * Ref https://github.com/camunda/camunda/blob/8c3166ad147f03911cba7f1105f236c68236a0e0/zeebe/broker/src/main/java/io/camunda/zeebe/broker/system/partitions/impl/StateControllerImpl.java#L118
+   
    */
   private void forceFreshSnapshot() {
     if (!container.isRunning()) {
